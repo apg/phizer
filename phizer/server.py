@@ -74,6 +74,7 @@ class ImageHandler(BaseHTTPRequestHandler):
             fmt = image.format
             if 'topx' in props:
                 image = crop(self.server.config, image, **props)
+                print 'after crop::', image.size
             image = resize(self.server.config, image, **props)
             return self.respond(image, fmt)
         return self.error(404, 'Not Found')
@@ -116,7 +117,7 @@ def serve_forever(server):
 
 def run_pool(config):
     server = ImageServer(config)
-
+    print "starting %d procs" % config.num_procs
     # create child processes to act as workers
     for i in range(config.num_procs):
         Process(target=serve_forever, args=(server,)).start()

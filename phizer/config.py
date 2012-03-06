@@ -60,26 +60,25 @@ class Config(object):
         self._num_procs = np
     num_procs = property(get_num_procs, set_num_procs)
 
-    @property
-    def get_master(self):
-        return self._master
-
-    @property
-    def get_slaves(self):
-        return self._slaves
-
     def get_max_dimension(self):
         return self._max_dimension
     def set_max_dimension(self, dimen):
         self._max_dimension = dimen
     max_dimension = property(get_max_dimension, set_max_dimension)
 
+    def get_master(self):
+        return self._master
+    def set_master(self, master):
+        self._master = master
+    master = property(get_master, set_master)
+
+    @property
+    def slaves(self):
+        return self._slaves
 
     def add_slave(self, slave):
         self._slaves.append(slave)
 
-    def set_master(self, master):
-        self._master = master
 
     @classmethod
     def from_file(self, filename):
@@ -93,7 +92,7 @@ class Config(object):
         bind_host = '127.0.0.1'
         bind_port = DEFAULT_BIND_PORT
         max_dimension = DEFAULT_MAX_DIMENSION
-        num_procs = cpu_count()
+        num_procs = None
         master = None
         slaves = []
 
@@ -108,6 +107,8 @@ class Config(object):
             elif section == 'properties':
                 bind_port = cp.get(section, 'bind_port') \
                     if 'bind_port' in options else DEFAULT_BIND_PORT
+                num_procs = int(cp.get(section, 'num_procs')) \
+                    if 'num_procs' in options else cpu_count()
                 bind_host = cp.get(section, 'bind_host') \
                     if 'bind_host' in options else 'localhost'
                 max_dimension = cp.get(section, 'max_dimension') \

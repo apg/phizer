@@ -2,6 +2,7 @@
 
 functions for resizing an instance of PIL.Image
 """
+from PIL import Image
 
 def resize(config, image, width=None, height=None, **kwargs):
     """Resize image to the specs provided in `props`
@@ -32,8 +33,36 @@ def resize(config, image, width=None, height=None, **kwargs):
 
 def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
     """Crops image based on properties
+    
+    crop points represent ratios. So, if the image is 1024x768, and you want
+    the a 500x500 pixel image from the center, the crop points would be:
+
+      256x174/744x826.
+
+
+    Why is this? Because we want 3 significant digits for the ratio without 
+    the annoying noise in the url. 
     """
-    return image
+    if not (topx and topy and botx and boty):
+        return image
+
+    size = image.size
+    print 'crop has size', size
+    tx = int(size[0]/1000.0 * int(topx))
+    ty = int(size[1]/1000.0 * int(topy))
+
+    bx = int(size[0]/1000.0 * int(botx))
+    by = int(size[1]/1000.0 * int(boty))
+
+    print size
+    print topx, topy, botx, boty
+    print tx, ty, bx, by
+    
+
+    print size[0] / 1000.0
+    print size[1] / 1000.0
+    # ok, possible to crop now.
+    return image.crop((tx, ty, bx, by))
 
 
 def constrain(from_width, from_height, to_width, to_height):
