@@ -1,0 +1,5 @@
+*~
+*.pyc
+resenv
+build
+*.egg-info
