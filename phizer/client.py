@@ -47,7 +47,7 @@ class ImageClient(object):
                 conn.close()
 
     def open(self, path):
-        """Opens a gdImage from a resource obtained via _get
+        """Opens a PIL.Image from a resource obtained via _get
         """
         resp_data = self._get(path)
         
