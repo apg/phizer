@@ -95,6 +95,11 @@ class ImageHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", m)
+        if config.max_age:
+            self.send_header("Cache-Control", "max-age=%d" % config.max_age)
+            dt = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                               time.gmtime() + config.max_age)
+            self.send_header("Expires", dt)
         self.end_headers()
         image.save(self.wfile, format)
 

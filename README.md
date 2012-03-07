@@ -13,7 +13,18 @@ anything that would make it incompatible with 2.6. phizer uses
 multiprocessing to start up multiple processes, and handles resizing
 using the [Python Imaging Library](http://www.pythonware.com/products/pil/).
 
+Keep in mind that PIL has it's own requirements. On debian, this entails
+installing libjpeg62-dev for jpeg support.
+
 ## Hacking
 
 To hack on phizer, simply install the items in requirements.txt. You might
 like to use virtualenv and pip to manage that for you.
+
+  $ apt-get install libjpeg62-dev # if you want JPEG support!
+  $ virtualenv phienv
+  $ . ./phienv/bin/activate
+  $ pip -E $VIRTUAL_ENV -r requirements.txt install 
+  $ python setup.py develop
+  
+Then, to start, create a config file, and run ./phienv/bin/phizer -c <configfile>

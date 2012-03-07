@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 
-from ConfigParser import ConfigParser
+from ConfigParser import SafeConfigParser as ConfigParser
 from client import ImageClient
 
 try:
@@ -12,6 +12,8 @@ except:
 
 DEFAULT_MAX_DIMENSION = 3000
 DEFAULT_BIND_PORT = 6776
+
+
 
 # lifted from tornado web.
 def cpu_count():
@@ -29,42 +31,43 @@ def cpu_count():
     return 1
 
 
+DEFAULT_PROPERTIES = {
+    'bind_host': 'localhost',
+    'bind_port': 6776,
+    'max_dimension': 3000,
+    'num_procs': cpu_count(),
+    'max_age': 0
+}
+
+PROPERTY_TYPES = {
+    'bind_host': str,
+    'bind_port': int,
+    'max_dimension': int,
+    'num_procs': int,
+    'max_age': int
+}
+
 class Config(object):
 
-    def __init__(self, host='127.0.0.1', 
-                 port=DEFAULT_BIND_PORT,
-                 max_dimension=DEFAULT_MAX_DIMENSION,
-                 master=None, slaves=None, num_procs=None):
-        self._host = host
-        self._port = port
-        self._num_procs = num_procs or cpu_count()
+    def __init__(self, properties=None, master=None, slaves=None):
+        self._properties = properties or DEFAULT_PROPERTIES.copy()
         self._master = master
         self._slaves = slaves or []
-        self._max_dimension = max_dimension
 
-    def get_port(self):
-        return self._port
-    def set_port(self, port):
-        self._port = port
-    port = property(get_port, set_port)
+    def __getattribute__(self, attr):
+        try:
+            return object.__getattribute__(self, attr)
+        except AttributeError, e:
+            if attr in self._properties:
+                return self._properties[attr]
+            raise e
 
-    def get_host(self):
-        return self._host
-    def set_host(self, host):
-        self._host = host
-    host = property(get_host, set_host)
-
-    def get_num_procs(self):
-        return self._num_procs
-    def set_num_procs(self, np):
-        self._num_procs = np
-    num_procs = property(get_num_procs, set_num_procs)
-
-    def get_max_dimension(self):
-        return self._max_dimension
-    def set_max_dimension(self, dimen):
-        self._max_dimension = dimen
-    max_dimension = property(get_max_dimension, set_max_dimension)
+    def set(self, attr, val):
+        if attr in self._properties:
+            self._properties[attr] = val
+        else:
+            logging.error("CONFIG: attempting to set property that "
+                          "doesn't exist")
 
     def get_master(self):
         return self._master
@@ -89,10 +92,6 @@ class Config(object):
             sys.stderr.write("Config file (%s) not found\n" % filename)
             raise SystemExit
 
-        bind_host = '127.0.0.1'
-        bind_port = DEFAULT_BIND_PORT
-        max_dimension = DEFAULT_MAX_DIMENSION
-        num_procs = None
         master = None
         slaves = []
 
@@ -105,24 +104,24 @@ class Config(object):
                                         if 'port' in options else 80)
                 slaves.append(slave)
             elif section == 'properties':
-                bind_port = cp.get(section, 'bind_port') \
-                    if 'bind_port' in options else DEFAULT_BIND_PORT
-                num_procs = int(cp.get(section, 'num_procs')) \
-                    if 'num_procs' in options else cpu_count()
-                bind_host = cp.get(section, 'bind_host') \
-                    if 'bind_host' in options else 'localhost'
-                max_dimension = cp.get(section, 'max_dimension') \
-                    if 'max_dimension' in options else DEFAULT_MAX_DIMENSION
-                
+                # build properties and set to logical types
+                properties = DEFAULT_PROPERTIES.copy()
+
+                # might be good to do validation here, but, meh.
+                for o in options:
+                    t = PROPERTY_TYPES.get(o)
+                    if t:
+                        properties[o] = t(cp.get(section, o))
+                    else:
+                        logging.warn("CONFIG: don't know about option %s "
+                                     "in properties section" % o)
+
             elif section == 'master':
                 master = ImageClient(cp.get(section, 'host'),
                                      port=cp.get(section, 'port')\
                                          if 'port' in options else 80)
 
         return Config(
-            host=bind_host, 
-            port=bind_port,
-            max_dimension=max_dimension,
-            num_procs=num_procs,
+            properties=properties,
             master=master, 
             slaves=slaves)
