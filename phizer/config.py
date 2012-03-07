@@ -101,7 +101,9 @@ class Config(object):
             if section.lower().startswith('slave'):
                 slave = ImageClient(cp.get(section, 'host'),
                                     port=cp.get(section, 'port')\
-                                        if 'port' in options else 80)
+                                        if 'port' in options else 80,
+                                    root=cp.get(section, 'root')\
+                                         if 'root' in options else '/')
                 slaves.append(slave)
             elif section == 'properties':
                 # build properties and set to logical types
@@ -118,8 +120,10 @@ class Config(object):
 
             elif section == 'master':
                 master = ImageClient(cp.get(section, 'host'),
-                                     port=cp.get(section, 'port')\
-                                         if 'port' in options else 80)
+                                     port=int(cp.get(section, 'port'))\
+                                         if 'port' in options else 80,
+                                     root=cp.get(section, 'root')\
+                                         if 'root' in options else '/')
 
         return Config(
             properties=properties,

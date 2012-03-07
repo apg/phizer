@@ -18,6 +18,7 @@ import httplib
 import hashlib
 import random
 import time
+import logging
 
 from multiprocessing import Process, current_process
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
@@ -35,14 +36,12 @@ URL_RE = re.compile('/(?P<width>\d+)x(?P<height>\d+)' # width x height
                     ')?/(?P<path>[^/]+\.[a-z]{3})')  # path
 
 
-def note(format, *args):
-    sys.stderr.write('[%s]\t%s\n' % (current_process().name, format%args))
-
-
 class ImageServer(HTTPServer):
     
     def __init__(self, config):
-        HTTPServer.__init__(self, (config.host, int(config.port)), ImageHandler)
+        HTTPServer.__init__(self, (config.bind_host, 
+                                   int(config.bind_port)), 
+                            ImageHandler)
         self._config = config
 
     @property
@@ -54,13 +53,12 @@ class ImageHandler(BaseHTTPRequestHandler):
     # we override log_message() to show which process is handling the request
 
     def log_message(self, format, *args):
-        note(format, *args)
+        logging.info(format % args)
 
     def do_GET(self):
         """Interprets self.path and grabs the appropriate image
         """
         # parse URL. If URL leads to valid request, serve it
-        print self.path
         mat = URL_RE.match(self.path)
         if not mat:
             return self.error(404, "Not Found")
@@ -75,7 +73,7 @@ class ImageHandler(BaseHTTPRequestHandler):
             fmt = image.format
             if 'topx' in props:
                 image = crop(self.server.config, image, **props)
-                print 'after crop::', image.size
+                logging.debug('size after crop: %s' % image.size)
             image = resize(self.server.config, image, **props)
             return self.respond(image, fmt)
         return self.error(404, 'Not Found')
@@ -92,16 +90,18 @@ class ImageHandler(BaseHTTPRequestHandler):
         except Exception, e:
             return self.error(500, "Internal error")
 
-        # TODO: Need to send cache headers!
-
         self.send_response(200)
         self.send_header("Content-Type", m)
-        if config.max_age:
-            self.send_header("Cache-Control", "max-age=%d" % config.max_age)
+
+        if self.server.config.max_age:
+            max_age = self.server.config.max_age
+            self.send_header("Cache-Control", "max-age=%d" % \
+                                 max_age)
             dt = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                               time.gmtime() + config.max_age)
+                               time.gmtime() + max_age)
             self.send_header("Expires", dt)
         self.end_headers()
+
         image.save(self.wfile, format)
 
     def mime(self, t):
@@ -114,7 +114,6 @@ class ImageHandler(BaseHTTPRequestHandler):
 
 
 def serve_forever(server):
-    note('starting server')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -123,16 +122,14 @@ def serve_forever(server):
 
 def run_pool(config):
     server = ImageServer(config)
-    print "starting %d procs" % config.num_procs
+    logging.info("starting %d procs" % config.num_procs)
+
     # create child processes to act as workers
-    for i in range(config.num_procs):
+    for i in range(config.num_procs - 1):
         Process(target=serve_forever, args=(server,)).start()
 
-    # TODO: this should become a watchdog...
-    # watch for sigchld and restart the process...
-
+    # TODO: should this become a watch dog?
     serve_forever(server)
-
 
 def find_image(config, path):
     """Locate an image from the master, or the slaves if
@@ -147,7 +144,7 @@ def find_image(config, path):
 
     random.shuffle(config.slaves)
     for slave in config.slaves:
-        img = slave.open(path)
+        img = slave.open(slpath)
         if img:
             return img
     return None

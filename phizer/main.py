@@ -27,6 +27,10 @@ parser.add_option('-p', '--port', dest="port", type="int", default=None,
 def main():
     (options, args) = parser.parse_args()
     conf = Config.from_file(options.config)
+
+    fmt = '%(asctime)s %(levelname)s %(processName)s[%(process)s] %(message)s'
+    logging.basicConfig(level=logging.INFO,
+                        format=fmt)
     
     if options.host:
         conf.set('bind_host', options.host)

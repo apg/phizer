@@ -4,6 +4,9 @@ functions for resizing an instance of PIL.Image
 """
 from PIL import Image
 
+import logging
+
+
 def resize(config, image, width=None, height=None, **kwargs):
     """Resize image to the specs provided in `props`
 
@@ -23,10 +26,10 @@ def resize(config, image, width=None, height=None, **kwargs):
 
     for step in steps:
         if step[0] == 'scale':
-            print 'scaling to: %s\n' % (step[1],)
+            logging.debug('scaling to: %s\n' % (step[1],))
             image.thumbnail(step[1], Image.ANTIALIAS)
         elif step[0] == 'crop':
-            print 'crop to: %s\n' % (step[1],)
+            logging.debug('crop to: %s\n' % (step[1],))
             image = image.crop(step[1])
     return image
 
@@ -47,20 +50,19 @@ def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
         return image
 
     size = image.size
-    print 'crop has size', size
+
     tx = int(size[0]/1000.0 * int(topx))
     ty = int(size[1]/1000.0 * int(topy))
 
     bx = int(size[0]/1000.0 * int(botx))
     by = int(size[1]/1000.0 * int(boty))
 
-    print size
-    print topx, topy, botx, boty
-    print tx, ty, bx, by
-    
 
-    print size[0] / 1000.0
-    print size[1] / 1000.0
+    if logging.isEnabledFor(logging.DEBUG):
+        logging.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
+                      ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
+                          (size, topx, topy, botx, boty, tx, ty, bx, by))
+
     # ok, possible to crop now.
     return image.crop((tx, ty, bx, by))
 
