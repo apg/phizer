@@ -144,7 +144,7 @@ def find_image(config, path):
 
     random.shuffle(config.slaves)
     for slave in config.slaves:
-        img = slave.open(slpath)
+        img = slave.open(path)
         if img:
             return img
     return None
