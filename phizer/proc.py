@@ -63,7 +63,7 @@ def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
                       ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
                           (size, topx, topy, botx, boty, tx, ty, bx, by))
 
-    # ok, possible to crop now.
+    # OK, possible to crop now.
     return image.crop((tx, ty, bx, by))
 
 
@@ -77,7 +77,7 @@ def constrain(from_width, from_height, to_width, to_height):
 
     if from_ratio == to_ratio:
         # simple scaling. allow scales greater, even if the quality is worse
-        return [('scale', to_width, to_height)]
+        return [('scale', (to_width, to_height))]
     elif to_ratio == 1.0: # square
         return _to_sq(from_width, from_height, to_width, to_height)
     else:
