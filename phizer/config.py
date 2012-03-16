@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import logging
 
 from ConfigParser import SafeConfigParser as ConfigParser
@@ -12,8 +13,6 @@ except:
 
 DEFAULT_MAX_DIMENSION = 3000
 DEFAULT_BIND_PORT = 6776
-
-
 
 # lifted from tornado web.
 def cpu_count():
@@ -30,6 +29,9 @@ def cpu_count():
     logging.error("Could not detect number of processors; assuming 1")
     return 1
 
+def int_tuple(s):
+    bits = re.split('(\d+)(?:x|,| )(\d+)', s.strip())
+    return int(bits[1]), int(bits[2])
 
 DEFAULT_PROPERTIES = {
     'bind_host': 'localhost',
@@ -44,15 +46,16 @@ PROPERTY_TYPES = {
     'bind_port': int,
     'max_dimension': int,
     'num_procs': int,
-    'max_age': int
+    'max_age': int,
 }
 
 class Config(object):
 
-    def __init__(self, properties=None, master=None, slaves=None):
+    def __init__(self, properties=None, master=None, slaves=None, sizes=None):
         self._properties = properties or DEFAULT_PROPERTIES.copy()
         self._master = master
         self._slaves = slaves or []
+        self._sizes = sizes or {}
 
     def __getattribute__(self, attr):
         try:
@@ -75,13 +78,20 @@ class Config(object):
         self._master = master
     master = property(get_master, set_master)
 
+
+    @property
+    def sizes(self):
+        return self._sizes
+
+    def set_size(self, s, val):
+        self._sizes[s] = val
+
     @property
     def slaves(self):
         return self._slaves
 
     def add_slave(self, slave):
         self._slaves.append(slave)
-
 
     @classmethod
     def from_file(self, filename):
@@ -95,6 +105,9 @@ class Config(object):
         master = None
         slaves = []
 
+        properties = DEFAULT_PROPERTIES.copy()
+        sizes = {}
+
         # TODO: make this a lot less ugly
         for section in cp.sections():
             options = cp.options(section)
@@ -107,7 +120,6 @@ class Config(object):
                 slaves.append(slave)
             elif section == 'properties':
                 # build properties and set to logical types
-                properties = DEFAULT_PROPERTIES.copy()
 
                 # might be good to do validation here, but, meh.
                 for o in options:
@@ -124,8 +136,16 @@ class Config(object):
                                          if 'port' in options else 80,
                                      root=cp.get(section, 'root')\
                                          if 'root' in options else '/')
+            elif section == 'sizes':
+                for o in options:
+                    try:
+                        sizes[o] = int_tuple(cp.get(section, o))
+                    except:
+                        logging.warn("CONFIG: don't know how to parse "
+                                     "dimensions for size '%s'" % o)
 
         return Config(
             properties=properties,
             master=master, 
-            slaves=slaves)
+            slaves=slaves,
+            sizes=sizes)

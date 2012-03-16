@@ -29,7 +29,7 @@ from phizer.proc import resize, crop
 from phizer.version import __name__ as program_name
 from phizer.version import __version__ as program_version
 
-URL_RE = re.compile('/(?P<width>\d+)x(?P<height>\d+)' # width x height
+URL_RE = re.compile('/(?P<size>[a-zA-Z0-9]+)' # size spec
                     '('
                     '/(?P<topx>\d+)x(?P<topy>\d+)' # top left corner
                     '/(?P<botx>\d+)x(?P<boty>\d+)' # bottom right corner
@@ -65,8 +65,13 @@ class ImageHandler(BaseHTTPRequestHandler):
 
         gd = mat.groupdict()
         props = dict((k, int(gd[k])) \
-                         for k in ('topx', 'topy', 'botx', 'boty', 
-                                   'width', 'height') if gd[k])
+                         for k in ('topx', 'topy', 'botx', 'boty') if gd[k])
+        dimens = self.get_size(gd['size'])
+        if not dimens:
+            return self.error(404, 'Not Found')
+        else:
+            props['width'] = dimens[0]
+            props['height'] = dimens[1]
 
         image = find_image(self.server.config, '/' + mat.groupdict()['path'])
         if image:
@@ -103,6 +108,12 @@ class ImageHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         image.save(self.wfile, format)
+
+    def get_size(self, st):
+        """Looks up size type in config. If found, returns cooresponding
+        dimensions, otherwise None
+        """
+        return self.server.config.sizes.get(st)
 
     def mime(self, t):
         return {'GIF': 'image/gif',
