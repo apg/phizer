@@ -7,10 +7,12 @@ import sys
 import traceback
 import httplib
 import logging
+import heapq
 
 from StringIO import StringIO
 from PIL import Image
 
+from phizer.cache import LRUCache
 
 class ImageClient(object):
     """Represents a place in which images can come from.
@@ -20,6 +22,7 @@ class ImageClient(object):
         self._host = host
         self._port = port
         self._root = root
+        self._cache = LRUCache(size=1000) # TODO: config!
 
     def _get_connection(self):
         return httplib.HTTPConnection(self._host, port=self._port, timeout=2)
@@ -50,22 +53,28 @@ class ImageClient(object):
             return self._root[:-1] + path
 
         return self._root + path
-
+    
     def open(self, path):
         """Opens a PIL.Image from a resource obtained via _get
         """
         path = self.path(path)
+        cached = self._cache.get(path)
+        if cached:
+            return Image.open(cached)
+
         resp_data = self._get(path)
         
         if resp_data:
             # here we go
             try:
                 dat = StringIO(resp_data[1])
+                cached.put(path, dat)
                 return Image.open(dat)
             except Exception, e:
                 logging.exception("failed to open response data")
                 return None
         return None
+
 
     def __repr__(self):
         return '<ImageClient: host=%s, port=%s, root=%s>' % \

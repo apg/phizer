@@ -19,6 +19,7 @@ import hashlib
 import random
 import time
 import logging
+from datetime import datetime
 
 from multiprocessing import Process, current_process
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
@@ -102,8 +103,8 @@ class ImageHandler(BaseHTTPRequestHandler):
             max_age = self.server.config.max_age
             self.send_header("Cache-Control", "max-age=%d" % \
                                  max_age)
-            dt = time.strftime("%a, %d %b %Y %H:%M:%S GMT",
-                               time.gmtime() + max_age)
+            dt = datetime.strftime("%a, %d %b %Y %H:%M:%S GMT",
+                                   self.get_expiration(max_age))
             self.send_header("Expires", dt)
         self.end_headers()
 
@@ -114,6 +115,11 @@ class ImageHandler(BaseHTTPRequestHandler):
         dimensions, otherwise None
         """
         return self.server.config.sizes.get(st)
+
+    def get_expiration(self, ma):
+        now = time.time()
+        nowage = now + ma
+        return datetime.fromtimestamp(nowage)
 
     def mime(self, t):
         return {'GIF': 'image/gif',
