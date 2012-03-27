@@ -2,7 +2,10 @@
 
 functions for resizing an instance of PIL.Image
 """
-from PIL import Image
+try:
+    import Image
+except ImportError:
+    from PIL import Image
 
 import logging
 

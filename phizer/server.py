@@ -22,12 +22,18 @@ import logging
 from datetime import datetime
 
 from multiprocessing import Process, current_process
+from multiprocessing.managers import BaseManager
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from PIL import Image
+
+try:
+    import Image
+except ImportError:
+    from PIL import Image
+
 
 from phizer.client import ImageClient
 from phizer.proc import resize, crop
-from phizer.cache import LRUCache, AUTHKEY, CacheManager
+from phizer.cache import SafeCache, LRUCache
 from phizer.version import __name__ as program_name
 from phizer.version import __version__ as program_version
 
@@ -137,14 +143,37 @@ def serve_forever(server):
     except KeyboardInterrupt:
         pass
 
-def serve_manager_cache(cache):
+class CacheManager(BaseManager):
     pass
 
+def serve_cache_forever(config, cache):
+    CacheManager.register("get_cache", callable=lambda: cache)
+    m = CacheManager(address=('', config.cache_port,),
+                     authkey=config.cache_authkey)
+    server = m.get_server()
+    serve_forever(server)
+
+
+def get_cache_client(config):
+    CacheManager.register("get_cache")
+    m = CacheManager(address=('', config.cache_port,), 
+                     authkey=config.cache_authkey)
+    return m
 
 def run_pool(config):
-    # create a cache manager.
+    cache_client = get_cache_client(config)
+    # set cache server for clients
+    for slave in config.slaves:
+        slave.cache = cache_client
+    config.master.cache = cache_client
 
-    # cache = SafeCache(LRUCache(10000))
+    # create cache server
+    logging.info("starting cache server")
+    Process(target=serve_cache_forever, 
+            args=(config, 
+                  SafeCache(LRUCache(config.cache_size)),)).start()
+
+    cache_client.connect()
 
     server = ImageServer(config)
     logging.info("starting %d procs" % config.num_procs)
@@ -152,6 +181,7 @@ def run_pool(config):
     # create child processes to act as workers
     for i in range(config.num_procs - 1):
         Process(target=serve_forever, args=(server,)).start()
+
 
     # TODO: should this become a watch dog?
     serve_forever(server)

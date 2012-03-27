@@ -9,10 +9,12 @@ import httplib
 import logging
 import heapq
 
-from StringIO import StringIO
-from PIL import Image
+from cStringIO import StringIO
+try:
+    import Image
+except ImportError:
+    from PIL import Image
 
-from phizer.cache import LRUCache
 
 class ImageClient(object):
     """Represents a place in which images can come from.
@@ -57,19 +59,23 @@ class ImageClient(object):
     def open(self, path):
         """Opens a PIL.Image from a resource obtained via _get
         """
+        cache = self._cache.get_cache()
         path = self.path(path)
-        cached = self._cache.get(path)
+
+        cached = cache.get(path)
         if cached:
-            return Image.open(cached)
+            return Image.open(StringIO(cached))
+        else:
+            logging.debug("cache miss %s" % path)
 
         resp_data = self._get(path)
         
         if resp_data:
             # here we go
             try:
-                dat = StringIO(resp_data[1])
-                cached.put(path, dat)
-                return Image.open(dat)
+                dat = resp_data[1]
+                cache.put(path, dat)
+                return Image.open(StringIO(dat))
             except Exception, e:
                 logging.exception("failed to open response data")
                 return None

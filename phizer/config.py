@@ -36,6 +36,9 @@ def int_tuple(s):
 DEFAULT_PROPERTIES = {
     'bind_host': 'localhost',
     'bind_port': 6776,
+    'cache_authkey': 'CACHE',
+    'cache_port': 6777,
+    'cache_size': 10000,
     'max_dimension': 3000,
     'num_procs': cpu_count(),
     'max_age': 0
@@ -44,6 +47,9 @@ DEFAULT_PROPERTIES = {
 PROPERTY_TYPES = {
     'bind_host': str,
     'bind_port': int,
+    'cache_authkey': str,
+    'cache_port': int,
+    'cache_size': int,
     'max_dimension': int,
     'num_procs': int,
     'max_age': int,

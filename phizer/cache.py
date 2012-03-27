@@ -1,6 +1,6 @@
-from multiprocessing.managers import BaseManager
-from threading import Lock
+from threading import RLock
 from collections import OrderedDict
+import logging
 import time
 
 # pointless!
