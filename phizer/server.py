@@ -110,7 +110,7 @@ class ImageHandler(BaseHTTPRequestHandler):
             max_age = self.server.config.max_age
             self.send_header("Cache-Control", "max-age=%d" % \
                                  max_age)
-            dt = datetime.strftime(self.get_expiration(max_age)
+            dt = datetime.strftime(self.get_expiration(max_age),
                                    "%a, %d %b %Y %H:%M:%S GMT")
             self.send_header("Expires", dt)
         self.end_headers()
