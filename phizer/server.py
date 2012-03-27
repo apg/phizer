@@ -27,6 +27,7 @@ from PIL import Image
 
 from phizer.client import ImageClient
 from phizer.proc import resize, crop
+from phizer.cache import LRUCache, AUTHKEY, CacheManager
 from phizer.version import __name__ as program_name
 from phizer.version import __version__ as program_version
 
@@ -136,8 +137,15 @@ def serve_forever(server):
     except KeyboardInterrupt:
         pass
 
+def serve_manager_cache(cache):
+    pass
+
 
 def run_pool(config):
+    # create a cache manager.
+
+    # cache = SafeCache(LRUCache(10000))
+
     server = ImageServer(config)
     logging.info("starting %d procs" % config.num_procs)
 

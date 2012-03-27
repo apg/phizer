@@ -18,11 +18,11 @@ class ImageClient(object):
     """Represents a place in which images can come from.
     """
 
-    def __init__(self, host, port=80, root='/'):
+    def __init__(self, host, port=80, root='/', cache=None):
         self._host = host
         self._port = port
         self._root = root
-        self._cache = LRUCache(size=1000) # TODO: config!
+        self._cache = cache
 
     def _get_connection(self):
         return httplib.HTTPConnection(self._host, port=self._port, timeout=2)
@@ -75,6 +75,13 @@ class ImageClient(object):
                 return None
         return None
 
+    def set_cache(self, cache):
+        self._cache = cache
+
+    def get_cache(self):
+        return self._cache
+
+    cache = property(get_cache, set_cache)
 
     def __repr__(self):
         return '<ImageClient: host=%s, port=%s, root=%s>' % \
