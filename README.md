@@ -28,3 +28,5 @@ like to use virtualenv and pip to manage that for you.
   $ python setup.py develop
   
 Then, to start, create a config file, and run ./phienv/bin/phizer -c <configfile>
+
+Happy hacking!
