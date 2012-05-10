@@ -41,7 +41,8 @@ DEFAULT_PROPERTIES = {
     'cache_size': 10000,
     'max_dimension': 3000,
     'num_procs': cpu_count(),
-    'max_age': 0
+    'max_age': 0,
+    'disable_cache': False
 }
 
 PROPERTY_TYPES = {
@@ -53,6 +54,7 @@ PROPERTY_TYPES = {
     'max_dimension': int,
     'num_procs': int,
     'max_age': int,
+    'disable_cache': bool,
 }
 
 class Config(object):

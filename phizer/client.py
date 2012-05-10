@@ -59,14 +59,18 @@ class ImageClient(object):
     def open(self, path):
         """Opens a PIL.Image from a resource obtained via _get
         """
-        cache = self._cache.get_cache()
+        cache = None
+        if self._cache:
+            cache = self._cache.get_cache()
+
         path = self.path(path)
 
-        cached = cache.get(path)
-        if cached:
-            return Image.open(StringIO(cached))
-        else:
-            logging.debug("cache miss %s" % path)
+        if cache:
+            cached = cache.get(path)
+            if cached:
+                return Image.open(StringIO(cached))
+            else:
+                logging.debug("cache miss %s" % path)
 
         resp_data = self._get(path)
         
@@ -74,7 +78,8 @@ class ImageClient(object):
             # here we go
             try:
                 dat = resp_data[1]
-                cache.put(path, dat)
+                if cache:
+                    cache.put(path, dat)
                 return Image.open(StringIO(dat))
             except Exception, e:
                 logging.exception("failed to open response data")

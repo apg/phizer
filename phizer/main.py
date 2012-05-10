@@ -14,6 +14,8 @@ parser.add_option('-d', '--max-dimension', default=None, dest='dimension',
                   type="int",
                   help="max dimensional size for images (default=%d)" % \
                       DEFAULT_PROPERTIES['max_dimension'])
+parser.add_option('-D', '--disable-cache', action="store_true", dest='disable_cache',
+                  help="disable cache")
 parser.add_option("-H", "--host", dest="host", default=None,
                   help="host interface to bind to (default=%s)" % \
                       DEFAULT_PROPERTIES['bind_host'])
@@ -42,6 +44,9 @@ def main():
         conf.set('max_dimension', options.dimension)
     if options.max_age:
         conf.set('max_age', options.max_age)
+    if options.disable_cache:
+        conf.set('disable_cache', options.disable_cache)
+
 
     run_pool(conf)
 

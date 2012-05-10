@@ -161,19 +161,23 @@ def get_cache_client(config):
     return m
 
 def run_pool(config):
-    cache_client = get_cache_client(config)
-    # set cache server for clients
-    for slave in config.slaves:
-        slave.cache = cache_client
-    config.master.cache = cache_client
+    if not config.disable_cache:
+        cache_client = get_cache_client(config)
 
-    # create cache server
-    logging.info("starting cache server")
-    Process(target=serve_cache_forever, 
-            args=(config, 
-                  SafeCache(LRUCache(config.cache_size)),)).start()
+        # set cache server for clients
+        for slave in config.slaves:
+            slave.cache = cache_client
+        config.master.cache = cache_client
 
-    cache_client.connect()
+        # create cache server
+        logging.info("starting cache server")
+        Process(target=serve_cache_forever, 
+                args=(config, 
+                      SafeCache(LRUCache(config.cache_size)),)).start()
+
+        cache_client.connect()
+    else:
+        logging.info("Disabling cache")
 
     server = ImageServer(config)
     logging.info("starting %d procs" % config.num_procs)
