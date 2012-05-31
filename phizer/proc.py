@@ -27,7 +27,13 @@ def resize(config, image, width=None, height=None, **kwargs):
 
     steps = constrain(size[0], size[1], width, height)
 
+    logging.debug("Steps: %s" % steps)
+
     for step in steps:
+        if step[0] == 'center':
+            # put image on canvas of config.color of width and height
+            logging.debug('centering image: on (%d, %d) canvas' % (width, height))
+            image = center_image(config, image, width, height, step[1], step[2])
         if step[0] == 'scale':
             logging.debug('scaling to: %s\n' % (step[1],))
             image.thumbnail(step[1], Image.ANTIALIAS)
@@ -36,6 +42,11 @@ def resize(config, image, width=None, height=None, **kwargs):
             image = image.crop(step[1])
     return image
 
+def center_image(config, image, width, height, topx, topy):
+    blank = Image.new("RGB", (width, height), config.canvas_color)
+    box = (topx, topy)
+    blank.paste(image, box)
+    return blank
 
 def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
     """Crops image based on properties
@@ -61,10 +72,9 @@ def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
     by = int(size[1]/1000.0 * int(boty))
 
 
-    if logging.isEnabledFor(logging.DEBUG):
-        logging.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
-                      ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
-                          (size, topx, topy, botx, boty, tx, ty, bx, by))
+    logging.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
+                  ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
+                      (size, topx, topy, botx, boty, tx, ty, bx, by))
 
     # OK, possible to crop now.
     return image.crop((tx, ty, bx, by))
@@ -78,14 +88,22 @@ def constrain(from_width, from_height, to_width, to_height):
     from_ratio = float(from_width) / from_height
     to_ratio = float(to_width) / to_height
 
-    if from_ratio == to_ratio:
-        # simple scaling. allow scales greater, even if the quality is worse
-        return [('scale', (to_width, to_height))]
-    elif to_ratio == 1.0: # square
-        return _to_sq(from_width, from_height, to_width, to_height)
-    else:
-        return _to_rect(from_width, from_height, to_width, to_height)
+    exceeds_y = from_height > to_height
+    exceeds_x = from_width > to_width
 
+    logging.debug('from_ratio: %f, to_ratio: %f' % (from_ratio, to_ratio))
+
+    if exceeds_y or exceeds_x:
+        if from_ratio == to_ratio:
+            # simple scaling. allow scales greater, even if the quality is worse
+            return [('scale', (to_width, to_height))]
+        elif to_ratio == 1.0: # square
+            return _to_sq(from_width, from_height, to_width, to_height)
+        else:
+            return _to_rect(from_width, from_height, to_width, to_height)
+    else: # incomplete
+        logging.debug("doesn't exceed in either direction")
+        return _to_rect(from_width, from_height, to_width, to_height)
 
 def _to_sq(fw, fh, tw, th):
     func = None
@@ -99,7 +117,9 @@ def _to_sq(fw, fh, tw, th):
 def _to_rect(fw, fh, tw, th):
     # constrain to max of th, tr
     func = None
-    if fw < fh and tw < th: # portrait -> portrait, keep height
+    if fw < tw and fh < th:
+        func = _center_and_keep
+    elif fw < fh and tw < th: # portrait -> portrait, keep height
         func = _resize_keep_height
     elif fw < fh: # portrait -> landscape, keep width
         func = _resize_keep_width
@@ -125,4 +145,9 @@ def _resize_keep_width(fw, fh, tw, th):
     hdiff = inter_height - th
     return [('scale', (int(inter_width), int(inter_height))),
             ('crop', (0, int(hdiff/2.0), tw, int(inter_height - (hdiff/2))))]
+
+def _center_and_keep(fw, fh, tw, th):
+    topx = int((tw - fw) / 2)
+    topy = int((th - fh) / 2)
+    return [('center', topx, topy)]
 
