@@ -101,8 +101,11 @@ def _crop_and_keep(fw, fh, tw, th):
 
     tx = 0
     ty = 0
-    bx = tw
-    by = th
+    bx = fw
+    by = fh
+
+#    import pdb
+#    pdb.set_trace()
 
     if wd > 0:
         # crop horizontally
