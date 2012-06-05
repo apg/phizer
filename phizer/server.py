@@ -80,6 +80,7 @@ class ImageHandler(BaseHTTPRequestHandler):
         else:
             props['width'] = dimens[0]
             props['height'] = dimens[1]
+            props['algorithm'] = dimens[2]
 
         image = find_image(self.server.config, '/' + mat.groupdict()['path'])
         if image:
@@ -87,6 +88,7 @@ class ImageHandler(BaseHTTPRequestHandler):
             if 'topx' in props:
                 image = crop(self.server.config, image, **props)
                 logging.debug('size after crop: %s' % image.size)
+            logging.debug("SIZE! %s" % (image.size,))
             image = resize(self.server.config, image, **props)
             return self.respond(image, fmt)
         return self.error(404, 'Not Found')

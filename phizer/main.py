@@ -4,6 +4,7 @@ from phizer.config import Config, DEFAULT_PROPERTIES
 from phizer.server import run_pool
 
 import logging
+import sys
 
 parser = OptionParser()
 parser.add_option('-a', '--max-age', default=None, dest='max_age', type='int',
@@ -19,6 +20,8 @@ parser.add_option('-D', '--disable-cache', action="store_true", dest='disable_ca
 parser.add_option("-H", "--host", dest="host", default=None,
                   help="host interface to bind to (default=%s)" % \
                       DEFAULT_PROPERTIES['bind_host'])
+parser.add_option('-l', '--log-level', default='WARN', dest='loglevel',
+                  help="log level to use (ERROR, INFO, DEBUG, WARN, CRITICAL)")
 parser.add_option('-n', '--num-procs', dest="num_procs", type="int",
                   default=None, help="number of processes to run (default=%d)" % \
                       DEFAULT_PROPERTIES['num_procs'])
@@ -29,10 +32,7 @@ parser.add_option('-p', '--port', dest="port", type="int", default=None,
 def main():
     (options, args) = parser.parse_args()
     conf = Config.from_file(options.config)
-
     fmt = '%(asctime)s %(levelname)s %(processName)s[%(process)s] %(message)s'
-    logging.basicConfig(level=logging.INFO,
-                        format=fmt)
     
     if options.host:
         conf.set('bind_host', options.host)
@@ -46,7 +46,15 @@ def main():
         conf.set('max_age', options.max_age)
     if options.disable_cache:
         conf.set('disable_cache', options.disable_cache)
+    if options.loglevel:
+        level = logging.getLevelName(options.loglevel)
+        if not isinstance(level, int):
+            print >>sys.stderr, "\nInvalid log level parameter\n"
+            parser.print_help()
+            sys.exit(1)
 
+    logging.basicConfig(level=level,
+                        format=fmt)
 
     run_pool(conf)
 

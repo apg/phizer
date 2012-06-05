@@ -7,10 +7,10 @@ try:
 except ImportError:
     from PIL import Image
 
+import constraints
 import logging
 
-
-def resize(config, image, width=None, height=None, **kwargs):
+def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
     """Resize image to the specs provided in `props`
 
     props contains:
@@ -25,7 +25,7 @@ def resize(config, image, width=None, height=None, **kwargs):
         # nothing to futz with
         return image
 
-    steps = constrain(size[0], size[1], width, height)
+    steps = constrain(size[0], size[1], width, height, algorithm)
 
     logging.debug("Steps: %s" % steps)
 
@@ -80,74 +80,16 @@ def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
     return image.crop((tx, ty, bx, by))
 
 
-def constrain(from_width, from_height, to_width, to_height):
+def constrain(from_width, from_height, to_width, to_height, algorithm):
     """Given from dimensions and target dimensions, determine the
     box that fits within towidth/toheight optimally without spilling
     over, but allowing a centered crop.
+
+    Call the appropriate function to handle the given algorithm, or default
+    to function
     """
-    from_ratio = float(from_width) / from_height
-    to_ratio = float(to_width) / to_height
-
-    exceeds_y = from_height > to_height
-    exceeds_x = from_width > to_width
-
-    logging.debug('from_ratio: %f, to_ratio: %f' % (from_ratio, to_ratio))
-
-    if exceeds_y or exceeds_x:
-        if from_ratio == to_ratio:
-            # simple scaling. allow scales greater, even if the quality is worse
-            return [('scale', (to_width, to_height))]
-        elif to_ratio == 1.0: # square
-            return _to_sq(from_width, from_height, to_width, to_height)
-        else:
-            return _to_rect(from_width, from_height, to_width, to_height)
-    else: # incomplete
-        logging.debug("doesn't exceed in either direction")
-        return _to_rect(from_width, from_height, to_width, to_height)
-
-def _to_sq(fw, fh, tw, th):
-    func = None
-    if fw < fh: # portrait
-        func = _resize_keep_width
-    else: # landscape
-        func = _resize_keep_height
-    return func(fw, fh, tw, th)
-
-
-def _to_rect(fw, fh, tw, th):
-    # constrain to max of th, tr
-    func = None
-    if fw < tw and fh < th:
-        func = _center_and_keep
-    elif fw < fh and tw < th: # portrait -> portrait, keep height
-        func = _resize_keep_height
-    elif fw < fh: # portrait -> landscape, keep width
-        func = _resize_keep_width
-    elif fw > fh and tw > th: # landscape -> landscape, keep width
-        func = _resize_keep_width
-    else: # landscape -> portrait, keep height
-        func = _resize_keep_height
-    return func(fw, fh, tw, th)
-
-
-def _resize_keep_height(fw, fh, tw, th):
-    ratio_h = th / float(fh)
-    inter_width = ratio_h * fw
-    inter_height = th
-    wdiff = inter_width - tw
-    return [('scale', (int(inter_width), int(inter_height))),
-            ('crop', (int(wdiff/2), 0, int(inter_width - (wdiff/2)), th))]
-
-def _resize_keep_width(fw, fh, tw, th):                 
-    ratio_w = tw / float(fw)
-    inter_width = tw
-    inter_height = ratio_w * fh
-    hdiff = inter_height - th
-    return [('scale', (int(inter_width), int(inter_height))),
-            ('crop', (0, int(hdiff/2.0), tw, int(inter_height - (hdiff/2))))]
-
-def _center_and_keep(fw, fh, tw, th):
-    topx = int((tw - fw) / 2)
-    topy = int((th - fh) / 2)
-    return [('center', topx, topy)]
-
+    algorithm = getattr(constraints, 'constrain_%s' % algorithm)
+    if algorithm:
+        return algorithm(from_width, from_height, to_width, to_height)
+    else:
+        return constraints.constrain_max(from_width, from_height, to_width, to_height)

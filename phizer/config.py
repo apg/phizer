@@ -3,6 +3,7 @@ import sys
 import re
 import logging
 
+from collections import namedtuple
 from ConfigParser import SafeConfigParser as ConfigParser
 from client import ImageClient
 
@@ -13,6 +14,8 @@ except:
 
 DEFAULT_MAX_DIMENSION = 3000
 DEFAULT_BIND_PORT = 6776
+
+sizespec = namedtuple('sizespec', 'w h t attrs')
 
 # lifted from tornado web.
 def cpu_count():
@@ -29,9 +32,37 @@ def cpu_count():
     logging.error("Could not detect number of processors; assuming 1")
     return 1
 
-def int_tuple(s):
-    bits = re.split('(\d+)(?:x|,| )(\d+)', s.strip())
-    return int(bits[1]), int(bits[2])
+def parse_size(s):
+    attrs = {}
+
+    (_, w, h, t, a, _) = re.split('(\d+)(?:x|,)?\s*(\d+)?\s+'
+                                  '(portrait|landscape|square|max)?'
+                                  '\s*((?:\w+=\w+)(?:,\s*(?:\w+=\w+))*)?',
+                                  s.strip())
+    if a:
+        attrs = dict(kv.split('=') for kv in 
+                     (p.strip() for p in a.split(',')))
+
+    w = int(w)
+    if h:
+        h = int(h)
+    else:
+        h = -1
+
+    if t:
+        if t == 'portrait' and w > h:
+            raise ValueError(
+                "For portrait sizing, width can't be greater than height")
+        elif t == 'landscape' and w < h:
+            raise ValueError(
+                "For landscape sizing, height can't be greater than width")
+        elif t == 'square' and w != h:
+            w = max(bits1, bits2)
+            h = w
+        elif t == 'max' and h < 0:
+            h = w
+
+    return sizespec(w, h, t, attrs)
 
 DEFAULT_PROPERTIES = {
     'bind_host': 'localhost',
@@ -149,7 +180,7 @@ class Config(object):
             elif section == 'sizes':
                 for o in options:
                     try:
-                        sizes[o] = int_tuple(cp.get(section, o))
+                        sizes[o] = parse_size(cp.get(section, o))
                     except:
                         logging.warn("CONFIG: don't know how to parse "
                                      "dimensions for size '%s'" % o)
