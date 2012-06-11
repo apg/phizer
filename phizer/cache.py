@@ -1,5 +1,10 @@
 from threading import RLock
-from collections import OrderedDict
+
+try:
+    from collections import OrderedDict
+except ImportError:
+    from phizer.ordereddict import OrderedDict
+
 import logging
 import time
 
