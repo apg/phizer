@@ -24,9 +24,13 @@ like to use virtualenv and pip to manage that for you.
     $ apt-get install libjpeg62-dev # if you want JPEG support!
     $ virtualenv phienv
     $ . ./phienv/bin/activate
-    $ pip -E $VIRTUAL_ENV -r requirements.txt install 
     $ python setup.py develop
+    
+You may need to run this before the last step.
+
+    $ pip -E $VIRTUAL_ENV -r requirements.txt install 
   
 Then, to start, create a config file, and run ./phienv/bin/phizer -c <configfile>
+(eg, use 8lt config file - it's in 8lt/etc/phizer/phizer.conf)
 
 Happy hacking!
