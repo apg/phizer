@@ -4,10 +4,10 @@ import logging
 
 def constrain_square(fw, fh, tw, th):
     """Generates steps to make a square out of the source and target
-    dimensions. 
+    dimensions. If somehow target is not a square, increase it to be such.
 
     1. crop to a square
-    2. if target is smaller than source, shrink it
+    2. resize it to fit the target
     """
     steps = []
     
@@ -22,17 +22,21 @@ def constrain_square(fw, fh, tw, th):
     # target should always be square
     target_size = max(tw,th)
     
-    # scale never scales up (only down), so this would work ok even if we unconditionly append 'scale'.
-    if target_size < fh or target_size < fw:
-        steps.append(('scale', (target_size, target_size)))
+    # resize would scale up
+    steps.append(('resize', (target_size, target_size)))
+
     return steps
 
 def constrain_max(fw, fh, tw, th):
     """Generates steps to scale down the image, as long as it fits within tw x th rectangle.
     """
-    
-    logging.debug("at constrain max: %dx%d => %dx%d" % (fw,fh,tw,th))
-    steps = [('scale', (tw, th))]
+
+    scalex = float(tw)/fw
+    scaley = float(th)/fh
+    scale = min(scalex,scaley)
+    inter_w = int(scale * fw)
+    inter_h = int(scale * fh)
+    steps = [('resize', (inter_w, inter_h))]
     return steps
 
 def constrain_portrait(fw, fh, tw, th):
@@ -40,23 +44,16 @@ def constrain_portrait(fw, fh, tw, th):
     dimensions.
     May crop sides of a wide image, will never crop top or bottom.
 
-    1. If image is taller than target, scale down
+    1. Resize the image such that height fits target height
     2. If image is too wide, crop sides
     """
 
-    if fw <= tw and fh <= th:
-        return []
-
     steps = []
-    scale_ratio = float(th) / fh
-    if scale_ratio > 1.0:
-        # no need to scale down
-        inter_height = fh
-        inter_width = fw
-    else:
-        inter_height = th
-        inter_width = int(fw * scale_ratio)
-        steps.append(('scale', (inter_width, inter_height)))
+    scaley = float(th)/fh
+
+    inter_height = th
+    inter_width = int(fw * scaley)
+    steps.append(('resize', (inter_width, inter_height)))
 
     crop_width = inter_width - tw
     if crop_width > 0:
@@ -71,23 +68,15 @@ def constrain_landscape(fw, fh, tw, th):
     dimensions.
     May crop top&bottom of a tall image, will never crop sides.
 
-    1. If image is wider than target, scale down
+    1. Resize the image such that width fits target width
     2. If image is too high, crop top and bottom
     """
 
-    if fw <= tw and fh <= th:
-        return []
-
     steps = []
-    scale_ratio = float(tw)/fw
-    if scale_ratio > 1.0:
-        # no need to scale down
-        inter_height = fh
-        inter_width = fw
-    else:
-        inter_width = tw
-        inter_height = int(fh * scale_ratio)
-        steps.append(('scale', (inter_width, inter_height)))
+    scalex = float(tw)/fw
+    inter_width = tw
+    inter_height = int(fh * scalex)
+    steps.append(('resize', (inter_width, inter_height)))
 
     crop_height = inter_height - th
     if crop_height > 0:
