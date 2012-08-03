@@ -117,7 +117,7 @@ class ImageHandler(BaseHTTPRequestHandler):
             self.send_header("Expires", dt)
         self.end_headers()
 
-        image.save(self.wfile, format)
+        image.save(self.wfile, format, quality=95)
 
     def get_size(self, st):
         """Looks up size type in config. If found, returns cooresponding
