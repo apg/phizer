@@ -44,8 +44,8 @@ class ImageClient(object):
             if str(resp.status)[0] == '2':
                 return (resp, resp.read())
             return None
-        except Exception, e:
-            logging.exception("failed to get %s, error was %s" % (path, e))
+        except Exception as e:
+            logging.error("failed to get %s (error is %s)" % (path, e))
             return None
         finally:
             if conn:
