@@ -46,6 +46,7 @@ class ImageClient(object):
             return None
         except Exception, e:
             logging.exception("failed to get %s - error was %s" % (path, e))
+            return None
         finally:
             if conn:
                 conn.close()
