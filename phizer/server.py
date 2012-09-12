@@ -37,11 +37,12 @@ from phizer.cache import SafeCache, LRUCache
 from phizer.version import __name__ as program_name
 from phizer.version import __version__ as program_version
 
-URL_RE = re.compile('/(?P<size>[a-zA-Z0-9]+)' # size spec
+URL_RE = re.compile('/(?P<size>[a-zA-Z0-9]+)'        # size spec
                     '('
-                    '/(?P<topx>\d+)x(?P<topy>\d+)' # top left corner
-                    '/(?P<botx>\d+)x(?P<boty>\d+)' # bottom right corner
-                    ')?/(?P<path>[^/]+\.[a-z]{3,4})')  # path
+                    '/(?P<topx>\d+)x(?P<topy>\d+)'   # top left corner
+                    '/(?P<botx>\d+)x(?P<boty>\d+)'   # bottom right corner
+                    ')?'                             # ? = maybe top/bot params
+                    '/(?P<path>[^/]+\.[a-z]{3,4})')  # path - extension length is 3-4
 
 
 class ImageServer(HTTPServer):
