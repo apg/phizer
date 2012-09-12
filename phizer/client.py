@@ -83,7 +83,7 @@ class ImageClient(object):
                     cache.put(path, dat)
                 return Image.open(StringIO(dat))
             except Exception, e:
-                logging.exception("failed to open response data")
+                logging.error("failed to open response data for %s" % path)
                 return None
         return None
 
