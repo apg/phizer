@@ -39,6 +39,9 @@ def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
             image.thumbnail(step[1], Image.ANTIALIAS)
         elif step[0] == 'resize':
             logging.debug('resizing to: %s\n' % (step[1],))
+            if image.mode == 'P' or image.mode == '1':
+                logging.debug('converting %s mode image to RGBA before resizing\n' % (image.mode))
+                image = image.convert('RGBA')
             image = image.resize(step[1], Image.ANTIALIAS)
         elif step[0] == 'crop':
             logging.debug('crop to: %s\n' % (step[1],))
