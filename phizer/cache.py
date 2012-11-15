@@ -5,7 +5,6 @@ try:
 except ImportError:
     from phizer.ordereddict import OrderedDict
 
-import logging
 import time
 
 # pointless!

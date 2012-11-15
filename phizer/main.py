@@ -3,7 +3,7 @@ from optparse import OptionParser
 from phizer.config import Config, DEFAULT_PROPERTIES
 from phizer.server import run_pool
 
-import logging
+import logger
 import sys
 
 parser = OptionParser()
@@ -47,14 +47,15 @@ def main():
     if options.disable_cache:
         conf.set('disable_cache', options.disable_cache)
     if options.loglevel:
+        if options.loglevel == 'DEBUG':
+            config.set('debug', True)
+
         level = logging.getLevelName(options.loglevel)
         if not isinstance(level, int):
             print >>sys.stderr, "\nInvalid log level parameter\n"
             parser.print_help()
             sys.exit(1)
 
-    logging.basicConfig(level=level,
-                        format=fmt)
-
+    logger.configure(conf, level=level, fmt=fmt)
     run_pool(conf)
 

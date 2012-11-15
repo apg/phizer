@@ -18,7 +18,8 @@ import httplib
 import hashlib
 import random
 import time
-import logging
+import logger
+
 from datetime import datetime
 
 from multiprocessing import Process, current_process
@@ -62,7 +63,7 @@ class ImageHandler(BaseHTTPRequestHandler):
     # we override log_message() to show which process is handling the request
 
     def log_message(self, format, *args):
-        logging.info(format % args)
+        logger.info(format % args)
 
     def do_GET(self):
         """Interprets self.path and grabs the appropriate image
@@ -88,8 +89,7 @@ class ImageHandler(BaseHTTPRequestHandler):
             fmt = image.format
             if 'topx' in props:
                 image = crop(self.server.config, image, **props)
-                logging.debug('size after crop: %s' % image.size)
-            logging.debug("SIZE! %s" % (image.size,))
+                logger.debug('size after crop: %s' % image.size)
             image = resize(self.server.config, image, **props)
             return self.respond(image, fmt)
         return self.error(404, 'Not Found')
@@ -173,22 +173,22 @@ def run_pool(config):
         config.master.cache = cache_client
 
         # create cache server
-        logging.info("starting cache server")
+        logger.info("starting cache server")
+
         Process(target=serve_cache_forever, 
                 args=(config, 
                       SafeCache(LRUCache(config.cache_size)),)).start()
 
         cache_client.connect()
     else:
-        logging.info("Disabling cache")
+        logger.info("Disabling cache")
 
     server = ImageServer(config)
-    logging.info("starting %d procs" % config.num_procs)
+    logger.info("starting %d procs" % config.num_procs)
 
     # create child processes to act as workers
     for i in range(config.num_procs - 1):
         Process(target=serve_forever, args=(server,)).start()
-
 
     # TODO: should this become a watch dog?
     serve_forever(server)

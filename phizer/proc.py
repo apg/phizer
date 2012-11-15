@@ -8,7 +8,7 @@ except ImportError:
     from PIL import Image
 
 import constraints
-import logging
+import logger
 
 def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
     """Resize image to the specs provided in `props`
@@ -27,24 +27,30 @@ def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
 
     steps = constrain(size[0], size[1], width, height, algorithm)
 
-    logging.debug("Steps: %s" % steps)
+    if config.debug:
+        logging.debug("Steps: %s" % steps)
 
     for step in steps:
         if step[0] == 'center':
             # put image on canvas of config.color of width and height
-            logging.debug('centering image: on (%d, %d) canvas' % (width, height))
+            if config.debug:
+                logging.debug('centering image: on (%d, %d) canvas' % (width, height))
             image = center_image(config, image, width, height, step[1], step[2])
         elif step[0] == 'scale':
-            logging.debug('scaling to: %s\n' % (step[1],))
+            if config.debug:
+                logging.debug('scaling to: %s\n' % (step[1],))
             image.thumbnail(step[1], Image.ANTIALIAS)
         elif step[0] == 'resize':
-            logging.debug('resizing to: %s\n' % (step[1],))
+            if config.debug:
+                logging.debug('resizing to: %s\n' % (step[1],))
             if image.mode == 'P' or image.mode == '1':
-                logging.debug('converting %s mode image to RGBA before resizing\n' % (image.mode))
+                if config.debug:
+                    logging.debug('converting %s mode image to RGBA before resizing\n' % (image.mode))
                 image = image.convert('RGBA')
             image = image.resize(step[1], Image.ANTIALIAS)
         elif step[0] == 'crop':
-            logging.debug('crop to: %s\n' % (step[1],))
+            if config.debug:
+                logging.debug('crop to: %s\n' % (step[1],))
             image = image.crop(step[1])
     return image
 
@@ -77,10 +83,10 @@ def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
     bx = int(size[0]/1000.0 * int(botx))
     by = int(size[1]/1000.0 * int(boty))
 
-
-    logging.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
-                  ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
-                      (size, topx, topy, botx, boty, tx, ty, bx, by))
+    if config.debug:
+        logger.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
+                     ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
+                         (size, topx, topy, botx, boty, tx, ty, bx, by))
 
     # OK, possible to crop now.
     return image.crop((tx, ty, bx, by))

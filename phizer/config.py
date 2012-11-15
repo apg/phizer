@@ -1,11 +1,12 @@
 import os
 import sys
 import re
-import logging
 
 from collections import namedtuple
 from ConfigParser import SafeConfigParser as ConfigParser
 from client import ImageClient
+
+import logger
 
 try:
     import multiprocessing
@@ -29,7 +30,7 @@ def cpu_count():
         return os.sysconf("SC_NPROCESSORS_CONF")
     except ValueError:
         pass
-    logging.error("Could not detect number of processors; assuming 1")
+    logger.error("Could not detect number of processors; assuming 1")
     return 1
 
 def parse_size(s):
@@ -74,7 +75,9 @@ DEFAULT_PROPERTIES = {
     'max_dimension': 3000,
     'num_procs': cpu_count(),
     'max_age': 0,
-    'disable_cache': False
+    'disable_cache': False,
+    'syslog_facility': None,
+    'syslog_priority': 'LOG_ERR',
 }
 
 PROPERTY_TYPES = {
@@ -88,6 +91,8 @@ PROPERTY_TYPES = {
     'num_procs': int,
     'max_age': int,
     'disable_cache': bool,
+    'syslog_facility': str,
+    'syslog_priority': str,
 }
 
 class Config(object):
@@ -110,7 +115,7 @@ class Config(object):
         if attr in self._properties:
             self._properties[attr] = val
         else:
-            logging.error("CONFIG: attempting to set property that "
+            logger.error("CONFIG: attempting to set property that "
                           "doesn't exist")
 
     def get_master(self):
@@ -168,7 +173,7 @@ class Config(object):
                     if t:
                         properties[o] = t(cp.get(section, o))
                     else:
-                        logging.warn("CONFIG: don't know about option %s "
+                        logger.warn("CONFIG: don't know about option %s "
                                      "in properties section" % o)
 
             elif section == 'master':
@@ -182,7 +187,7 @@ class Config(object):
                     try:
                         sizes[o] = parse_size(cp.get(section, o))
                     except:
-                        logging.warn("CONFIG: don't know how to parse "
+                        logger.warn("CONFIG: don't know how to parse "
                                      "dimensions for size '%s'" % o)
 
         return Config(

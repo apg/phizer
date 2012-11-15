@@ -1,5 +1,5 @@
 import math
-import logging
+import logger
 
 
 def constrain_square(fw, fh, tw, th):
@@ -30,7 +30,6 @@ def constrain_square(fw, fh, tw, th):
 def constrain_max(fw, fh, tw, th):
     """Generates steps to scale down the image, as long as it fits within tw x th rectangle.
     """
-
     scalex = float(tw)/fw
     scaley = float(th)/fh
     scale = min(scalex,scaley)

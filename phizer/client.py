@@ -6,7 +6,6 @@ import re
 import sys
 import traceback
 import httplib
-import logging
 import heapq
 
 from cStringIO import StringIO
