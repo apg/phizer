@@ -63,7 +63,7 @@ class ImageHandler(BaseHTTPRequestHandler):
     # we override log_message() to show which process is handling the request
 
     def log_message(self, format, *args):
-        logger.info(format % args)
+        logger.info(format, *args)
 
     def do_GET(self):
         """Interprets self.path and grabs the appropriate image

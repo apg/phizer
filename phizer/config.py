@@ -78,6 +78,7 @@ DEFAULT_PROPERTIES = {
     'disable_cache': False,
     'syslog_facility': None,
     'syslog_priority': 'LOG_ERR',
+    'debug': False
 }
 
 PROPERTY_TYPES = {
@@ -93,6 +94,7 @@ PROPERTY_TYPES = {
     'disable_cache': bool,
     'syslog_facility': str,
     'syslog_priority': str,
+    'debug': bool,
 }
 
 class Config(object):

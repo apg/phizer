@@ -14,6 +14,8 @@ try:
 except ImportError:
     from PIL import Image
 
+import logger
+
 
 class ImageClient(object):
     """Represents a place in which images can come from.
@@ -44,7 +46,7 @@ class ImageClient(object):
                 return (resp, resp.read())
             return None
         except Exception as e:
-            logging.error("failed to get %s (error is %s)" % (path, e))
+            logger.error("failed to get %s (error is %s)" % (path, e))
             return None
         finally:
             if conn:
@@ -70,7 +72,7 @@ class ImageClient(object):
             if cached:
                 return Image.open(StringIO(cached))
             else:
-                logging.debug("cache miss %s" % path)
+                logger.debug("cache miss %s" % path)
 
         resp_data = self._get(path)
         
@@ -82,7 +84,7 @@ class ImageClient(object):
                     cache.put(path, dat)
                 return Image.open(StringIO(dat))
             except Exception, e:
-                logging.error("failed to open response data for %s" % path)
+                logger.error("failed to open response data for %s" % path)
                 return None
         return None
 

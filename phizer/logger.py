@@ -20,7 +20,7 @@ def critical(msg, *args, **kwargs):
         level = syslog.LOG_CRIT
     else:
         level = logging.CRITICAL
-    self.log(level, msg, args)
+    log(level, msg, *args, **kwargs)
     raise SystemExit("critical error")
 
 fatal = critical
@@ -31,7 +31,7 @@ def debug(msg, *args, **kwargs):
         level = syslog.LOG_DEBUG
     else:
         level = logging.DEBUG
-    self.log(level, msg, args)
+    log(level, msg, *args, **kwargs)
 
 def error(msg, *args, **kwargs):
     """Log a message with severity 'ERROR' on the root logger."""
@@ -39,7 +39,7 @@ def error(msg, *args, **kwargs):
         level = syslog.LOG_ERR
     else:
         level = logging.ERROR
-    self.log(level, msg, args)
+    log(level, msg, *args, **kwargs)
 
 def info(msg, *args, **kwargs):
     """Log a message with severity 'INFO' on the root logger."""
@@ -47,7 +47,7 @@ def info(msg, *args, **kwargs):
         level = syslog.LOG_INFO
     else:
         level = logging.INFO
-    self.log(level, msg, args)
+    log(level, msg, *args, **kwargs)
 
 def log(level, msg, *args, **kwargs):
     """Log 'msg % args' with the integer severity 'level' on the
@@ -55,7 +55,7 @@ def log(level, msg, *args, **kwargs):
     if USE_SYSLOG:
         syslog.syslog(level, msg % args)
     else:
-        logging.log(level, msg, args)
+        logging.log(level, msg, *args, **kwargs)
 
 def warning(msg, *args, **kwargs):
     """Log a message with severity 'WARNING' on the root logger."""
@@ -63,6 +63,6 @@ def warning(msg, *args, **kwargs):
         level = syslog.LOG_WARNING
     else:
         level = logging.WARN
-    self.log(level, msg, args)
+    log(level, msg, *args, **kwargs)
 
 warn = warning

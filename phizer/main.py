@@ -3,8 +3,11 @@ from optparse import OptionParser
 from phizer.config import Config, DEFAULT_PROPERTIES
 from phizer.server import run_pool
 
-import logger
+import logging
 import sys
+
+import logger
+
 
 parser = OptionParser()
 parser.add_option('-a', '--max-age', default=None, dest='max_age', type='int',
