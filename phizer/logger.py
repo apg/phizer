@@ -52,6 +52,7 @@ def info(msg, *args, **kwargs):
 def log(level, msg, *args, **kwargs):
     """Log 'msg % args' with the integer severity 'level' on the
     root logger."""
+    return
     if USE_SYSLOG:
         syslog.syslog(level, msg % args)
     else:

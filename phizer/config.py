@@ -65,37 +65,44 @@ def parse_size(s):
 
     return sizespec(w, h, t, attrs)
 
+DEFAULT_NUM_WORKERS = cpu_count()
+if DEFAULT_NUM_WORKERS > 1:
+    DEFAULT_NUM_WORKERS -= 1 # 
+
 DEFAULT_PROPERTIES = {
     'bind_host': 'localhost',
     'bind_port': 6776,
-    'canvas_color': '#ffffff', # TODO: allow this to be set!
     'cache_authkey': 'CACHE',
     'cache_port': 6777,
     'cache_size': 10000,
-    'max_dimension': 3000,
-    'num_procs': cpu_count(),
-    'max_age': 0,
+    'canvas_color': '#ffffff', # TODO: allow this to be set!
+    'debug': False,
     'disable_cache': False,
+    'image_quality': 95, # image save quality (affects JPEG only)
+    'max_age': 0,        # cache max age
+    'max_dimension': 3000,
+    'num_workers': DEFAULT_NUM_WORKERS,
     'syslog_facility': None,
     'syslog_priority': 'LOG_ERR',
-    'debug': False
 }
 
 PROPERTY_TYPES = {
     'bind_host': str,
     'bind_port': int,
-    'canvas_color': str,
     'cache_authkey': str,
     'cache_port': int,
     'cache_size': int,
-    'max_dimension': int,
-    'num_procs': int,
-    'max_age': int,
+    'canvas_color': str,
+    'debug': bool,
     'disable_cache': bool,
+    'image_quality': int,
+    'max_age': int,
+    'max_dimension': int,
+    'num_workers': int,
     'syslog_facility': str,
     'syslog_priority': str,
-    'debug': bool,
 }
+
 
 class Config(object):
 
@@ -156,6 +163,7 @@ class Config(object):
         properties = DEFAULT_PROPERTIES.copy()
         sizes = {}
 
+        # TODO: Clients now can have a cache, use it!
         # TODO: make this a lot less ugly
         for section in cp.sections():
             options = cp.options(section)

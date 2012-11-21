@@ -11,33 +11,32 @@ URLs are of the form:
    /(width)x(height)/(top-corner-x)x(top-corner-y)/(bottom-right-x)x(bottom-right-y)/path.ext
 
 """
+import binascii
+import hashlib
+import httplib
+import logger
 import os
+import random
 import re
 import sys
-import httplib
-import hashlib
-import random
 import time
-import logger
+import urllib
 
 from datetime import datetime
 
-from multiprocessing import Process, current_process
-from multiprocessing.managers import BaseManager
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-
-try:
-    import Image
-except ImportError:
-    from PIL import Image
-
+import tornado.ioloop
+import tornado.httpclient as thc
+import tornado.web as tw
+import tornado.process
+from tornado import gen
 
 from phizer.client import ImageClient
 from phizer.proc import resize, crop
-from phizer.cache import SafeCache, LRUCache
+from phizer.cache import LRUCache, cached_image
 from phizer.version import __name__ as program_name
 from phizer.version import __version__ as program_version
 
+VERSION_STRING = '%s/%s' % (program_name, program_version)
 URL_RE = re.compile('/(?P<size>[a-zA-Z0-9]+)'        # size spec
                     '('
                     '/(?P<topx>\d+)x(?P<topy>\d+)'   # top left corner
@@ -45,169 +44,232 @@ URL_RE = re.compile('/(?P<size>[a-zA-Z0-9]+)'        # size spec
                     ')?'                             # ? = maybe top/bot params
                     '/(?P<path>[^/]+\.[a-z]{3,4})')  # path - extension length is 3-4
 
-
-class ImageServer(HTTPServer):
-    
-    def __init__(self, config):
-        HTTPServer.__init__(self, (config.bind_host, 
-                                   int(config.bind_port)), 
-                            ImageHandler)
-        self._config = config
-
-    @property
-    def config(self):
-        return self._config
+MIMES = {
+    'JPEG': 'image/jpeg',
+    'JPG': 'image/jpeg',
+    'GIF': 'image/gif',
+    'PNG': 'image/png',
+}
 
 
-class ImageHandler(BaseHTTPRequestHandler):
-    # we override log_message() to show which process is handling the request
+def crc32(x):
+    return binascii.crc32(x) & 0xffffffff
 
-    def log_message(self, format, *args):
-        logger.info(format, *args)
 
-    def do_GET(self):
-        """Interprets self.path and grabs the appropriate image
-        """
-        # parse URL. If URL leads to valid request, serve it
-        mat = URL_RE.match(self.path)
-        if not mat:
-            return self.error(404, "Not Found")
+class BaseRequestHandler(tw.RequestHandler):
 
-        gd = mat.groupdict()
-        props = dict((k, int(gd[k])) \
-                         for k in ('topx', 'topy', 'botx', 'boty') if gd[k])
-        dimens = self.get_size(gd['size'])
-        if not dimens:
-            return self.error(404, 'Not Found')
+    def set_default_headers(self):
+        self.set_header('Server', VERSION_STRING)
+
+    def send_404(self):
+        self.set_status(404)
+        self.write("Not Found")
+        self.finish()
+
+
+class ImageHandler(BaseRequestHandler):
+    """Proxies requests to the a FetchResizeHandler (on another server)
+    and caches the result.
+
+    For now, we're being dumb and caching the end result, which isn't
+    minimizing reads from the external "disk." We'd ideally have a cache
+    that caches the full size images as well.
+
+    Note: might be doable with by hashing the filename and choosing the
+    image handler that way...
+    """
+
+    CACHE = None
+    CONFIG = None
+    WORKERS = []
+
+    @classmethod
+    def set_cache(cls, cache):
+        cls.CACHE = cache
+
+    @classmethod
+    def set_config(cls, config):
+        cls.CONFIG = config
+
+    @classmethod
+    def set_workers(cls, workers):
+        cls.WORKERS = workers
+
+    @tw.asynchronous
+    @gen.engine
+    def get(self, path):
+        s = time.time()
+        cached = self.CACHE.get(path)
+        if cached:
+            print "This is cached (not fetching anything, DONE):", path
+            self.deliver(cached)
+            print "Time to deliver cached:", time.time() - s
+            return
+
+        url = self.get_worker_url(path)
+        print "Fetching from worker:", url
+        client = thc.AsyncHTTPClient()
+        response = yield gen.Task(client.fetch, url)
+        if response.error:
+            self.set_status(response.code)
+            self.write(str(response.error))
+            self.finish()
         else:
-            props['width'] = dimens[0]
-            props['height'] = dimens[1]
-            props['algorithm'] = dimens[2]
+            # cache the response
+            image = cached_image(body=response.body,
+                                 content_type=response.headers.get('Content-Type'),
+                                 size=len(response.body))
+            self.CACHE.put(path, image)
+            self.deliver(image)
+            print "Time to deliver worker fetched:", time.time() - s
+        return
 
-        image = find_image(self.server.config, '/' + mat.groupdict()['path'])
-        if image:
-            fmt = image.format
-            if 'topx' in props:
-                image = crop(self.server.config, image, **props)
-                logger.debug('size after crop: %s' % image.size)
-            image = resize(self.server.config, image, **props)
-            return self.respond(image, fmt)
-        return self.error(404, 'Not Found')
-    
-    def error(self, code, msg=None):
-        self.send_response(code, msg)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write('<html><body><h1>Not found</h1></body></html>')
+    def deliver(self, image):
+        self.set_status(200)
+        self.set_header('Content-Length', image.size)
+        self.set_header('Content-Type', image.content_type)
 
-    def respond(self, image, format='JPEG'):
-        try:
-            m = self.mime(format)
-        except Exception, e:
-            return self.error(500, "Internal error")
-
-        self.send_response(200)
-        self.send_header("Content-Type", m)
-
-        if self.server.config.max_age:
-            max_age = self.server.config.max_age
-            self.send_header("Cache-Control", "max-age=%d" % \
-                                 max_age)
-            dt = datetime.strftime(self.get_expiration(max_age),
+        if self.CONFIG.max_age:
+            ma = self.CONFIG.max_age
+            self.set_header("Cache-Control", "max-age=%d" % ma)
+            dt = datetime.strftime(self.get_expiration(ma),
                                    "%a, %d %b %Y %H:%M:%S GMT")
-            self.send_header("Expires", dt)
-        self.end_headers()
+            self.set_header("Expires", dt)
 
-        image.save(self.wfile, format, quality=95)
+        self.finish(image.body)
 
-    def get_size(self, st):
-        """Looks up size type in config. If found, returns cooresponding
-        dimensions, otherwise None
-        """
-        return self.server.config.sizes.get(st)
+    def get_worker_url(self, path):
+        worker = crc32(path) % self.CONFIG.num_workers
+        return urllib.basejoin(self.WORKERS[worker], path)
 
     def get_expiration(self, ma):
         now = time.time()
         nowage = now + ma
         return datetime.fromtimestamp(nowage)
 
-    def mime(self, t):
-        return {'GIF': 'image/gif',
-                'PNG': 'image/png',
-                'JPEG': 'image/jpeg'}[t]
 
-    def version_string(self):
-        return '%s/%s' % (program_name, program_version)
+class FetchResizeHandler(BaseRequestHandler):
+    """Fetches and resizes based on PATH_INFO and config
+    """
+    CACHE = None
+    CONFIG = None
+
+    @classmethod
+    def set_cache(cls, cache):
+        cls.CACHE = cache
+
+    @classmethod
+    def set_config(cls, config):
+        cls.CONFIG = config
+
+    @tw.asynchronous
+    @gen.engine
+    def get(self, path):
+        mat = URL_RE.match(path)
+        if not mat:
+            self.send_404()
+            return 
+
+        gd = mat.groupdict()
+        props = dict((k, int(gd[k])) \
+                         for k in ('topx', 'topy', 'botx', 'boty') if gd[k])
+        dimens = self.CONFIG.sizes.get(gd['size'])
+        if not dimens:
+            self.send_404()
+            return 
+        else:
+            props['width'] = dimens[0]
+            props['height'] = dimens[1]
+            props['algorithm'] = dimens[2]
+
+        image = yield gen.Task(self.find_image, gd['path'])
+        if image:
+#            print "Found image: ", path
+            fmt = image.format
+            if 'topx' in props:
+                image = crop(self.CONFIG, image, **props)
+                logger.debug('size after crop: %s' % image.size)
+            image = resize(self.CONFIG, image, **props)
+            self.send_image(image, fmt)
+            return 
+#        print "Didn't find image"
+        self.send_404()
+
+    def send_image(self, image, format):
+        mime = MIMES[format]
+        self.set_status(200)
+        self.set_header('Content-Type', mime)
+        image.save(self, format, quality=self.CONFIG.image_quality)
+        self.finish()
+
+    @gen.engine
+    def find_image(self, path, callback=None):
+        """Locate an image from the master, or the slaves if
+        not found on the master
+
+        TODO: it'd be nice to hit the slaves in parallel, since
+        it's likely that only one has the image...
+        """
+#        print "In find_image"
+        if self.CACHE:
+            img = self.CACHE.get(path)
+            if img and callback:
+                callback(img)
+                return
+
+        img = yield gen.Task(self.CONFIG.master.open, path)
+        if img:
+            if self.CACHE:
+                self.CACHE.put(path, img)
+            
+            if callback:
+                callback(img)
+            return
 
 
-def serve_forever(server):
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+#        print path, "Fetching from slaves"
+        # DO THIS IN PARALLEL INSTEAD
+        random.shuffle(self.CONFIG.slaves)
+        for slave in self.CONFIG.slaves:
+            img = yield gen.Task(slave.open, path)
+            if img:
+                if callback:
+                    callback(img)
+                return 
 
-class CacheManager(BaseManager):
-    pass
-
-def serve_cache_forever(config, cache):
-    CacheManager.register("get_cache", callable=lambda: cache)
-    m = CacheManager(address=('', config.cache_port,),
-                     authkey=config.cache_authkey)
-    server = m.get_server()
-    serve_forever(server)
-
-
-def get_cache_client(config):
-    CacheManager.register("get_cache")
-    m = CacheManager(address=('', config.cache_port,), 
-                     authkey=config.cache_authkey)
-    return m
+        if callback:
+#            print path, "Calling back with None in find_image"
+            callback(None)
+        return
 
 def run_pool(config):
-    if not config.disable_cache:
-        cache_client = get_cache_client(config)
+    # Fork processes
+    task_id = tornado.process.fork_processes(config.num_workers + 1, max_restarts=100)
+    if task_id == 0:
+        cls = ImageHandler
+        cache = LRUCache(10000)
+        cache.DEBUG = True
+        cache.DEBUG_NAME = 'Resized Image Cache'
+        port = config.bind_port
 
-        # set cache server for clients
-        for slave in config.slaves:
-            slave.cache = cache_client
-        config.master.cache = cache_client
-
-        # create cache server
-        logger.info("starting cache server")
-
-        Process(target=serve_cache_forever, 
-                args=(config, 
-                      SafeCache(LRUCache(config.cache_size)),)).start()
-
-        cache_client.connect()
+        cls.set_workers(['http://localhost:%d/' % (port+i+1,) \
+                                 for i in range(config.num_workers)])
     else:
-        logger.info("Disabling cache")
+        cls = FetchResizeHandler
+        cache = LRUCache(1000)
+        cache.DEBUG = True
+        cache.DEBUG_NAME = 'Full Size Image Cache'
 
-    server = ImageServer(config)
-    logger.info("starting %d procs" % config.num_procs)
+        port = config.bind_port + task_id
 
-    # create child processes to act as workers
-    for i in range(config.num_procs - 1):
-        Process(target=serve_forever, args=(server,)).start()
+    cls.set_config(config)
+    cls.set_cache(cache)
 
-    # TODO: should this become a watch dog?
-    serve_forever(server)
-
-def find_image(config, path):
-    """Locate an image from the master, or the slaves if
-    not found on the master
-
-    TODO: it'd be nice to hit the slaves in parallel, since
-    it's likely that only one has the image...
-    """
-    img = config.master.open(path)
-    if img:
-        return img
-
-    random.shuffle(config.slaves)
-    for slave in config.slaves:
-        img = slave.open(path)
-        if img:
-            return img
-    return None
-
+    logger.info("Starting %s, task-%d, listening on %d..." % \
+                    (cls.__name__, task_id, port))
+        
+    application = tw.Application([
+                (r"(.*)", cls),
+                ])
+    application.listen(port)
+    tornado.ioloop.IOLoop.instance().start()
