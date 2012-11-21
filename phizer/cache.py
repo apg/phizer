@@ -1,84 +1,65 @@
-from threading import RLock
-
 try:
     from collections import OrderedDict
 except ImportError:
     from phizer.ordereddict import OrderedDict
 
-import time
+import operator
+import sys
 
-# pointless!
-AUTHKEY = 'CACHE MONEY'
+from collections import namedtuple
+
+cached_image = namedtuple('cached_image', 
+                          ['body', 'content_type', 'size'])
 
 
-class LRUCache(object):
-    """poor man's LRU
-    """
-    
-    def __init__(self, size):
-        self._size = size
-        self._order = OrderedDict()
-        self._cache = {}
+class SizedLRUCache(object):
+
+    def __init__(self, max_size=None):
+        self._max_size = max_size
+        self._current_size = 0
+        self._cache = OrderedDict()
 
     def get(self, key):
-        if key in self._cache:
-            self.touch(key)
-        return self._cache.get(key)
+        value = self._cache.pop(key)
+        self._cache[key] = value
+        return value
 
-    def put(self, key, val):
-        try:
-            del self._order[key]
-        except:
-            pass
+    def put(self, key, value):
+        self._cache.pop(key, None)
+        self._update_current_size(value)
 
-        self._cache[key] = val
-        self.touch(key)
-        self._purge()
+        if self._current_size > self._max_size:
+            self._purge()
+
+        self._cache[key] = value
 
     def delete(self, key):
-        try:
-            del self._cache[key]
-            del self._order[key]
-        except:
-            pass
+        _ = self._cache.pop(key)
+        self._update_current_size(value, operator.sub)
 
     def touch(self, key):
-        if key in self._order:
-            del self._order[key]
-        self._order[key] = time.time()
+        """'uses' item at key, thereby making it recently used
+        """
+        value = self._cache.pop(key)
+        self._cache[key] = value
 
+    @property
     def size(self):
+        return self._current_size
+
+    def _update_current_size(self, value, f=operator.add):
+        self._current_size = f(self._current_size, sys.getsizeof(value))
+
+    def __len__(self):
+        """Returns the number of items in the cache"""
         return len(self._cache)
 
     def _purge(self):
-        while len(self._cache) > self._size and len(self._order) > 0:
-            key, _ = self._order.popitem(last=False)
-            try:
-                del self._cache[key]
-            except:
-                pass
+        """Purges least recently used items until less than `max_size`
+        """
+        if self._max_size is None:
+            return
 
-
-class SafeCache(object):
-    """Provides a multiprocessing Manager for image caching
-    """
-
-    def __init__(self, cache):
-        self.__cache = cache
-        self.__lock = RLock()
-
-    def get(self, key):
-        with self.__lock:
-            return self.__cache.get(key)
-
-    def put(self, key, value):
-        with self.__lock:
-            return self.__cache.put(key, value)
-
-    def delete(self, key):
-        with self.__lock:
-            return self.__cache.delete(key)
-
-    def size(self):
-        return self.__cache.size()
-
+        while self._current_size > self._max_size and len(self) > 0:
+            key, value = self._cache.popitem(True)
+            self._update_current_size(value, operator.sub)

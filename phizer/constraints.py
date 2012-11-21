@@ -1,5 +1,5 @@
 import math
-import logger
+import logging
 
 
 def constrain_square(fw, fh, tw, th):

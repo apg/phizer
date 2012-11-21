@@ -5,21 +5,21 @@ import os
 import re
 import sys
 import traceback
-import httplib
-import heapq
+import urllib
+
+import tornado.httpclient as thc
+from tornado import gen
 
 from cStringIO import StringIO
+from phizer.cache import cached_image
+
 try:
     import Image
 except ImportError:
     from PIL import Image
 
-import logger
-
 
 class ImageClient(object):
-    """Represents a place in which images can come from.
-    """
 
     def __init__(self, host, port=80, root='/', cache=None):
         self._host = host
@@ -27,75 +27,45 @@ class ImageClient(object):
         self._root = root
         self._cache = cache
 
-    def _get_connection(self):
-        return httplib.HTTPConnection(self._host, port=self._port, timeout=2)
+    @property
+    def client(self):
+        return thc.AsyncHTTPClient()
 
-    def _get(self, path, headers=None):
-        """Returns `None` if path is not in the connected resource
-        Otherwise, returns `(HTTPResponse, data)` 
+    @gen.engine
+    def open(self, path, callback=None):
+        """Asynchronously opens an image from a remote resource
         """
-        conn = None
-        try:
-            conn = self._get_connection()
-            if headers:
-                conn.request('GET', path, headers=headers)
-            else:
-                conn.request('GET', path)
-            resp = conn.getresponse()
-            if str(resp.status)[0] == '2':
-                return (resp, resp.read())
-            return None
-        except Exception as e:
-            logger.error("failed to get %s (error is %s)" % (path, e))
-            return None
-        finally:
-            if conn:
-                conn.close()
-
-    def path(self, path):
-        if self._root.endswith('/') and path.startswith('/'):
-            return self._root[:-1] + path
-
-        return self._root + path
-    
-    def open(self, path):
-        """Opens a PIL.Image from a resource obtained via _get
-        """
-        cache = None
+        cimg = None
         if self._cache:
-            cache = self._cache.get_cache()
-
-        path = self.path(path)
-
-        if cache:
-            cached = cache.get(path)
-            if cached:
-                return Image.open(StringIO(cached))
-            else:
-                logger.debug("cache miss %s" % path)
-
-        resp_data = self._get(path)
-        
-        if resp_data:
-            # here we go
             try:
-                dat = resp_data[1]
-                if cache:
-                    cache.put(path, dat)
-                return Image.open(StringIO(dat))
-            except Exception, e:
-                logger.error("failed to open response data for %s" % path)
-                return None
-        return None
+                cimg = self._cache.get(path)
+            except KeyError:
+                pass
 
-    def set_cache(self, cache):
-        self._cache = cache
+        if not cimg:
+            url = self.url_for(path)
+            response = yield gen.Task(self.client.fetch, url)
+            if response.error:
+                callback(None)
+                return 
 
-    def get_cache(self):
-        return self._cache
+            ctype = response.headers.get('Content-Type')
+            cimg = cached_image(body=response.body,
+                                content_type=ctype,
+                                size=len(response.body))
 
-    cache = property(get_cache, set_cache)
+            if self._cache:
+                self._cache.put(path, cimg)
 
-    def __repr__(self):
-        return '<ImageClient: host=%s, port=%s, root=%s>' % \
-            (self._host, self._port, self._root)
+        if cimg and callback:
+            callback(Image.open(StringIO(cimg.body)))
+        elif callback:
+            callback(None)
+        return
+
+    def url_for(self, path):
+        return urllib.basejoin('http://%s:%s%s' % (self._host, 
+                                                self._port, 
+                                                self._root),
+                               path)
+        

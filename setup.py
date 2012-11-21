@@ -5,7 +5,7 @@ setup(
     name = "phizer",
     version = __version__,
     packages = find_packages(),
-    install_requires = ['PIL'],
+    install_requires = ['PIL', 'tornado', 'pycurl'],
     entry_points = {
         'console_scripts': [
             'phizer = phizer.main:main',

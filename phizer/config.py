@@ -6,7 +6,7 @@ from collections import namedtuple
 from ConfigParser import SafeConfigParser as ConfigParser
 from client import ImageClient
 
-import logger
+import logging
 
 try:
     import multiprocessing
@@ -30,7 +30,7 @@ def cpu_count():
         return os.sysconf("SC_NPROCESSORS_CONF")
     except ValueError:
         pass
-    logger.error("Could not detect number of processors; assuming 1")
+    logging.error("Could not detect number of processors; assuming 1")
     return 1
 
 def parse_size(s):
@@ -62,40 +62,49 @@ def parse_size(s):
             h = w
         elif t == 'max' and h < 0:
             h = w
+    else:
+        t = 'max'
+        h = max(w, h)
+        w = max(w, h)
 
     return sizespec(w, h, t, attrs)
+
+DEFAULT_NUM_WORKERS = cpu_count()
+if DEFAULT_NUM_WORKERS > 1:
+    DEFAULT_NUM_WORKERS -= 1 # 
 
 DEFAULT_PROPERTIES = {
     'bind_host': 'localhost',
     'bind_port': 6776,
     'canvas_color': '#ffffff', # TODO: allow this to be set!
-    'cache_authkey': 'CACHE',
-    'cache_port': 6777,
-    'cache_size': 10000,
-    'max_dimension': 3000,
-    'num_procs': cpu_count(),
-    'max_age': 0,
+    'client_cache_size': 25 * 1024 * 1024, # 25MB
+    'debug': False,
     'disable_cache': False,
+    'image_quality': 95, # image save quality (affects JPEG only)
+    'max_age': 0,        # cache max age
+    'max_dimension': 3000,
+    'num_workers': DEFAULT_NUM_WORKERS,
+    'resized_cache_size': 100 * 1024 * 1024, # 100MB
     'syslog_facility': None,
     'syslog_priority': 'LOG_ERR',
-    'debug': False
 }
 
 PROPERTY_TYPES = {
     'bind_host': str,
     'bind_port': int,
     'canvas_color': str,
-    'cache_authkey': str,
-    'cache_port': int,
-    'cache_size': int,
-    'max_dimension': int,
-    'num_procs': int,
-    'max_age': int,
+    'client_cache_size': int,
+    'debug': bool,
     'disable_cache': bool,
+    'image_quality': int,
+    'max_age': int,
+    'max_dimension': int,
+    'num_workers': int,
+    'resized_cache_size': int,
     'syslog_facility': str,
     'syslog_priority': str,
-    'debug': bool,
 }
+
 
 class Config(object):
 
@@ -117,7 +126,7 @@ class Config(object):
         if attr in self._properties:
             self._properties[attr] = val
         else:
-            logger.error("CONFIG: attempting to set property that "
+            logging.error("CONFIG: attempting to set property that "
                           "doesn't exist")
 
     def get_master(self):
@@ -125,7 +134,6 @@ class Config(object):
     def set_master(self, master):
         self._master = master
     master = property(get_master, set_master)
-
 
     @property
     def sizes(self):
@@ -156,6 +164,7 @@ class Config(object):
         properties = DEFAULT_PROPERTIES.copy()
         sizes = {}
 
+        # TODO: Clients now can have a cache, use it!
         # TODO: make this a lot less ugly
         for section in cp.sections():
             options = cp.options(section)
@@ -175,7 +184,7 @@ class Config(object):
                     if t:
                         properties[o] = t(cp.get(section, o))
                     else:
-                        logger.warn("CONFIG: don't know about option %s "
+                        logging.warn("CONFIG: don't know about option %s "
                                      "in properties section" % o)
 
             elif section == 'master':
@@ -189,7 +198,7 @@ class Config(object):
                     try:
                         sizes[o] = parse_size(cp.get(section, o))
                     except:
-                        logger.warn("CONFIG: don't know how to parse "
+                        logging.warn("CONFIG: don't know how to parse "
                                      "dimensions for size '%s'" % o)
 
         return Config(

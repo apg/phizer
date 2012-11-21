@@ -1,13 +1,9 @@
 from optparse import OptionParser
 
-from phizer.config import Config, DEFAULT_PROPERTIES
-from phizer.server import run_pool
-
-import logging
 import sys
+import logging
 
-import logger
-
+from phizer.config import Config, DEFAULT_PROPERTIES
 
 parser = OptionParser()
 parser.add_option('-a', '--max-age', default=None, dest='max_age', type='int',
@@ -25,24 +21,27 @@ parser.add_option("-H", "--host", dest="host", default=None,
                       DEFAULT_PROPERTIES['bind_host'])
 parser.add_option('-l', '--log-level', default='WARN', dest='loglevel',
                   help="log level to use (ERROR, INFO, DEBUG, WARN, CRITICAL)")
-parser.add_option('-n', '--num-procs', dest="num_procs", type="int",
-                  default=None, help="number of processes to run (default=%d)" % \
-                      DEFAULT_PROPERTIES['num_procs'])
+parser.add_option('-n', '--num-workers', dest="num_workers", type="int",
+                  default=None, help="number of workers to run (default=%d)" % \
+                      DEFAULT_PROPERTIES['num_workers'])
 parser.add_option('-p', '--port', dest="port", type="int", default=None,
                   help="port to bind to (default=%d)" % \
                       DEFAULT_PROPERTIES['bind_port'])
 
 def main():
+    from phizer.server import run_pool
     (options, args) = parser.parse_args()
     conf = Config.from_file(options.config)
-    fmt = '%(asctime)s %(levelname)s %(processName)s[%(process)s] %(message)s'
+
+    level = logging.DEBUG
+    fmt = '%(levelname)s %(processName)s[%(process)s] %(message)s'
     
     if options.host:
         conf.set('bind_host', options.host)
     if options.port:
         conf.set('bind_port', options.port)
-    if options.num_procs:
-        conf.set('num_procs', options.num_procs)
+    if options.num_workers:
+        conf.set('num_workers', options.num_workers)
     if options.dimension:
         conf.set('max_dimension', options.dimension)
     if options.max_age:
@@ -59,6 +58,6 @@ def main():
             parser.print_help()
             sys.exit(1)
 
-    logger.configure(conf, level=level, fmt=fmt)
+    logging.basicConfig(level=level, format=fmt)
     run_pool(conf)
 

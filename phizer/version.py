@@ -1,2 +1,2 @@
-__version__ = '0.4.4'
+__version__ = '0.4.9'
 __name__ = 'phizer'

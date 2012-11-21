@@ -8,7 +8,7 @@ except ImportError:
     from PIL import Image
 
 import constraints
-import logger
+import logging
 
 def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
     """Resize image to the specs provided in `props`
@@ -17,8 +17,8 @@ def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
       width, height
     """
     size = image.size
-    # TODO: config max dimension
-    if width >= 1500 or height >= 1500:
+
+    if width >= config.max_dimension or height >= config.max_dimension:
         return image
 
     if width == size[0] and height == size[1]:
@@ -84,7 +84,7 @@ def crop(config, image, topx=None, topy=None, botx=None, boty=None, **kwargs):
     by = int(size[1]/1000.0 * int(boty))
 
     if config.debug:
-        logger.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
+        logging.debug('crop has size: %s. top: (%d, %d), bottom: (%d, %d)' 
                      ' -> to points top: (%d, %d), bottom: (%d, %d))' % \
                          (size, topx, topy, botx, boty, tx, ty, bx, by))
 
