@@ -35,23 +35,30 @@ class ImageClient(object):
     def open(self, path, callback=None):
         """Asynchronously opens an image from a remote resource
         """
-        image_data = None
+        cimg = None
         if self._cache:
-            image_data = self._cache.get(path)
+            try:
+                cimg = self._cache.get(path)
+            except KeyError:
+                pass
 
-        if not image_data:
+        if not cimg:
             url = self.url_for(path)
             response = yield gen.Task(self.client.fetch, url)
             if response.error:
                 callback(None)
                 return 
 
-            image_data = response.body
-            if self._cache:
-                self._cache.put(path, image_data)
+            ctype = response.headers.get('Content-Type')
+            cimg = cached_image(body=response.body,
+                                content_type=ctype,
+                                size=len(image_data))
 
-        if image_data and callback:
-            callback(Image.open(StringIO(image_data)))
+            if self._cache:
+                self._cache.put(path, cimg)
+
+        if cimg and callback:
+            callback(Image.open(StringIO(cimg.body)))
         elif callback:
             callback(None)
         return

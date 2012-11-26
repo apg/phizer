@@ -32,7 +32,7 @@ from tornado import gen
 
 from phizer.client import ImageClient
 from phizer.proc import resize, crop
-from phizer.cache import LRUCache, cached_image
+from phizer.cache import SizedLRUCache, cached_image
 from phizer.version import __name__ as program_name
 from phizer.version import __version__ as program_version
 
@@ -99,15 +99,14 @@ class ImageHandler(BaseRequestHandler):
     @gen.engine
     def get(self, path):
         s = time.time()
-        cached = self.CACHE.get(path)
-        if cached:
-            print "This is cached (not fetching anything, DONE):", path
+        try:
+            cached = self.CACHE.get(path)
             self.deliver(cached)
-            print "Time to deliver cached:", time.time() - s
             return
+        except KeyError:
+            pass
 
         url = self.get_worker_url(path)
-        print "Fetching from worker:", url
         client = thc.AsyncHTTPClient()
         response = yield gen.Task(client.fetch, url)
         if response.error:
@@ -121,7 +120,6 @@ class ImageHandler(BaseRequestHandler):
                                  size=len(response.body))
             self.CACHE.put(path, image)
             self.deliver(image)
-            print "Time to deliver worker fetched:", time.time() - s
         return
 
     def deliver(self, image):
@@ -184,7 +182,6 @@ class FetchResizeHandler(BaseRequestHandler):
 
         image = yield gen.Task(self.find_image, gd['path'])
         if image:
-#            print "Found image: ", path
             fmt = image.format
             if 'topx' in props:
                 image = crop(self.CONFIG, image, **props)
@@ -192,7 +189,6 @@ class FetchResizeHandler(BaseRequestHandler):
             image = resize(self.CONFIG, image, **props)
             self.send_image(image, fmt)
             return 
-#        print "Didn't find image"
         self.send_404()
 
     def send_image(self, image, format):
@@ -210,12 +206,14 @@ class FetchResizeHandler(BaseRequestHandler):
         TODO: it'd be nice to hit the slaves in parallel, since
         it's likely that only one has the image...
         """
-#        print "In find_image"
         if self.CACHE:
-            img = self.CACHE.get(path)
-            if img and callback:
-                callback(img)
+            try:
+                img = self.CACHE.get(path)
+                if callback:
+                    callback(img)
                 return
+            except KeyError:
+                pass
 
         img = yield gen.Task(self.CONFIG.master.open, path)
         if img:
@@ -226,8 +224,6 @@ class FetchResizeHandler(BaseRequestHandler):
                 callback(img)
             return
 
-
-#        print path, "Fetching from slaves"
         # DO THIS IN PARALLEL INSTEAD
         random.shuffle(self.CONFIG.slaves)
         for slave in self.CONFIG.slaves:
@@ -238,7 +234,6 @@ class FetchResizeHandler(BaseRequestHandler):
                 return 
 
         if callback:
-#            print path, "Calling back with None in find_image"
             callback(None)
         return
 
@@ -247,7 +242,7 @@ def run_pool(config):
     task_id = tornado.process.fork_processes(config.num_workers + 1, max_restarts=100)
     if task_id == 0:
         cls = ImageHandler
-        cache = LRUCache(10000)
+        cache = SizedLRUCache(config.resized_cache_size)
         cache.DEBUG = True
         cache.DEBUG_NAME = 'Resized Image Cache'
         port = config.bind_port
@@ -256,10 +251,9 @@ def run_pool(config):
                                  for i in range(config.num_workers)])
     else:
         cls = FetchResizeHandler
-        cache = LRUCache(1000)
+        cache = SizedLRUCache(config.client_cache_size)
         cache.DEBUG = True
         cache.DEBUG_NAME = 'Full Size Image Cache'
-
         port = config.bind_port + task_id
 
     cls.set_config(config)

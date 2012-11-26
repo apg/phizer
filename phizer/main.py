@@ -1,12 +1,11 @@
 from optparse import OptionParser
 
+import sys
+import logging
+
+from phizer import logger
 from phizer.config import Config, DEFAULT_PROPERTIES
 from phizer.server import run_pool
-
-import logging
-import sys
-
-import logger
 
 
 parser = OptionParser()

@@ -17,8 +17,8 @@ def resize(config, image, width=None, height=None, algorithm=None, **kwargs):
       width, height
     """
     size = image.size
-    # TODO: config max dimension
-    if width >= 1500 or height >= 1500:
+
+    if width >= config.max_dimension or height >= config.max_dimension:
         return image
 
     if width == size[0] and height == size[1]:

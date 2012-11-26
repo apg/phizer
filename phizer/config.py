@@ -62,6 +62,10 @@ def parse_size(s):
             h = w
         elif t == 'max' and h < 0:
             h = w
+    else:
+        t = 'max'
+        h = max(w, h)
+        w = max(w, h)
 
     return sizespec(w, h, t, attrs)
 
@@ -72,16 +76,15 @@ if DEFAULT_NUM_WORKERS > 1:
 DEFAULT_PROPERTIES = {
     'bind_host': 'localhost',
     'bind_port': 6776,
-    'cache_authkey': 'CACHE',
-    'cache_port': 6777,
-    'cache_size': 10000,
     'canvas_color': '#ffffff', # TODO: allow this to be set!
+    'client_cache_size': 25 * 1024 * 1024, # 25MB
     'debug': False,
     'disable_cache': False,
     'image_quality': 95, # image save quality (affects JPEG only)
     'max_age': 0,        # cache max age
     'max_dimension': 3000,
     'num_workers': DEFAULT_NUM_WORKERS,
+    'resized_cache_size': 100 * 1024 * 1024, # 100MB
     'syslog_facility': None,
     'syslog_priority': 'LOG_ERR',
 }
@@ -89,16 +92,15 @@ DEFAULT_PROPERTIES = {
 PROPERTY_TYPES = {
     'bind_host': str,
     'bind_port': int,
-    'cache_authkey': str,
-    'cache_port': int,
-    'cache_size': int,
     'canvas_color': str,
+    'client_cache_size': int,
     'debug': bool,
     'disable_cache': bool,
     'image_quality': int,
     'max_age': int,
     'max_dimension': int,
     'num_workers': int,
+    'resized_cache_size': int,
     'syslog_facility': str,
     'syslog_priority': str,
 }
@@ -132,7 +134,6 @@ class Config(object):
     def set_master(self, master):
         self._master = master
     master = property(get_master, set_master)
-
 
     @property
     def sizes(self):
