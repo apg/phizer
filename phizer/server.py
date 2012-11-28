@@ -71,6 +71,7 @@ class BaseRequestHandler(tw.RequestHandler):
     def send_404(self):
         self.set_status(404)
         self.write("Not Found")
+        self.finish()
 
 
 class ImageHandler(BaseRequestHandler):
@@ -119,6 +120,8 @@ class ImageHandler(BaseRequestHandler):
         if response.error:
             self.set_status(response.code)
             self.write(str(response.error))
+            self.finish()
+            return
         else:
             # cache the response
             image = cached_image(body=response.body,
@@ -126,8 +129,8 @@ class ImageHandler(BaseRequestHandler):
                                  size=len(response.body))
             self.CACHE.put(path, image)
             self.deliver(image)
-        self.finish()
-        return 
+            self.finish()
+            return 
 
     def deliver(self, image):
         self.set_status(200)
@@ -195,8 +198,8 @@ class FetchResizeHandler(BaseRequestHandler):
             self.send_image(image, fmt)
         else:
             self.send_404()
+            return
 
-        self.finish()
         return
 
     def send_image(self, image, format):
@@ -204,6 +207,7 @@ class FetchResizeHandler(BaseRequestHandler):
         self.set_status(200)
         self.set_header('Content-Type', mime)
         image.save(self, format, quality=self.CONFIG.image_quality)
+        self.finish()
 
     @gen.engine
     def find_image(self, path, callback=None):
