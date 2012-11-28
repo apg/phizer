@@ -46,6 +46,7 @@ class ImageClient(object):
             url = self.url_for(path)
             response = yield gen.Task(self.client.fetch, url)
             if response.error:
+                logging.error('%s got a %s', path, response.error)
                 callback(None)
                 return 
 

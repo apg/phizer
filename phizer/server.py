@@ -108,6 +108,7 @@ class ImageHandler(BaseRequestHandler):
         try:
             cached = self.CACHE.get(path)
             self.deliver(cached)
+            self.flush()
             return
         except KeyError:
             pass
