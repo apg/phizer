@@ -4,6 +4,7 @@ import re
 
 from collections import namedtuple
 from ConfigParser import SafeConfigParser as ConfigParser
+from ConfigParser import NoOptionError
 from client import ImageClient
 
 import logging
@@ -81,8 +82,11 @@ DEFAULT_PROPERTIES = {
     'debug': False,
     'disable_cache': False,
     'image_quality': 95, # image save quality (affects JPEG only)
+    'log_level': 'WARN',
+    'log_level_worker': 'WARN',
     'max_age': 0,        # cache max age
     'max_dimension': 3000,
+    'max_inflight_requests': 100, # max requests to image backend.
     'num_workers': DEFAULT_NUM_WORKERS,
     'resized_cache_size': 100 * 1024 * 1024, # 100MB
     'syslog_facility': None,
@@ -97,8 +101,11 @@ PROPERTY_TYPES = {
     'debug': bool,
     'disable_cache': bool,
     'image_quality': int,
+    'log_level': str,
+    'log_level_worker': str,
     'max_age': int,
     'max_dimension': int,
+    'max_inflight_requests': int,
     'num_workers': int,
     'resized_cache_size': int,
     'syslog_facility': str,
@@ -158,6 +165,13 @@ class Config(object):
             sys.stderr.write("Config file (%s) not found\n" % filename)
             raise SystemExit
 
+        max_inflight = DEFAULT_PROPERTIES['max_inflight_requests']
+        try:
+            max_inflight = cp.getint('properties',
+                                     'max_inflight_requests')
+        except NoOptionError:
+            pass
+
         master = None
         slaves = []
 
@@ -173,7 +187,8 @@ class Config(object):
                                     port=cp.get(section, 'port')\
                                         if 'port' in options else 80,
                                     root=cp.get(section, 'root')\
-                                         if 'root' in options else '/')
+                                        if 'root' in options else '/',
+                                    max_clients=max_inflight)
                 slaves.append(slave)
             elif section == 'properties':
                 # build properties and set to logical types
@@ -192,7 +207,8 @@ class Config(object):
                                      port=int(cp.get(section, 'port'))\
                                          if 'port' in options else 80,
                                      root=cp.get(section, 'root')\
-                                         if 'root' in options else '/')
+                                         if 'root' in options else '/',
+                                     max_clients=max_inflight)
             elif section == 'sizes':
                 for o in options:
                     try:
