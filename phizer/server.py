@@ -65,6 +65,10 @@ def crc32(x):
 
 class BaseRequestHandler(tw.RequestHandler):
 
+    def __init__(self, application, request, **kwargs):
+        super(BaseRequestHandler, self).\
+            __init__(application, request, **kwargs)
+
     def set_default_headers(self):
         self.set_header('Server', VERSION_STRING)
 
@@ -146,7 +150,11 @@ class ImageHandler(BaseRequestHandler):
         self.write(image.body)
 
     def get_worker_url(self, path):
-        worker = crc32(path) % self.CONFIG.num_workers
+        """Get's an appropriate worker where the file is likely cached
+        """
+        # just get the filename of the path...
+        name = path.split('/').pop()
+        worker = crc32(name) % self.CONFIG.num_workers
         return urllib.basejoin(self.WORKERS[worker], path)
 
     def get_expiration(self, ma):
@@ -160,6 +168,12 @@ class FetchResizeHandler(BaseRequestHandler):
     """
     CACHE = None
     CONFIG = None
+
+    def __init__(self, application, request, **kwargs):
+        super(FetchResizeHandler, self).\
+            __init__(application, request, **kwargs)
+        self._resize_time = 0.0
+        self._fetch_time = 0.0
 
     @classmethod
     def set_cache(cls, cache):
@@ -188,13 +202,17 @@ class FetchResizeHandler(BaseRequestHandler):
             props['width'] = dimens[0]
             props['height'] = dimens[1]
             props['algorithm'] = dimens[2]
-
+            
+        fetch_start = time.time()
         image = yield gen.Task(self.find_image, gd['path'])
+        self._fetch_time = time.time() - fetch_start
         if image:
             fmt = image.format
+            resize_start = time.time()
             if 'topx' in props:
                 image = crop(self.CONFIG, image, **props)
             image = resize(self.CONFIG, image, **props)
+            self._resize_time = time.time() - resize_start
             self.send_image(image, fmt)
         else:
             self.send_404()
@@ -208,6 +226,13 @@ class FetchResizeHandler(BaseRequestHandler):
         self.set_header('Content-Type', mime)
         image.save(self, format, quality=self.CONFIG.image_quality)
         self.finish()
+
+    # overridden to add more information in the log
+    def _request_summary(self):
+        return self.request.method + " " + self.request.uri + \
+            " (" + self.request.remote_ip + ")" + \
+            " (fetch in %.2fms)" % (self._fetch_time * 1000.0) + \
+            " (resize in %.2fms)" % (self._resize_time * 1000.0) 
 
     @gen.engine
     def find_image(self, path, callback=None):
@@ -248,24 +273,23 @@ class FetchResizeHandler(BaseRequestHandler):
             callback(None)
         return
 
-def run_pool(config):
+def run_pool(config, level=logging.INFO, worker_level=logging.INFO):
+             
     # Fork processes
     task_id = tornado.process.fork_processes(config.num_workers + 1, max_restarts=100)
     if task_id == 0:
         cls = ImageHandler
         cache = SizedLRUCache(config.resized_cache_size)
-        cache.DEBUG = True
-        cache.DEBUG_NAME = 'Resized Image Cache'
         port = config.bind_port
 
         cls.set_workers(['http://localhost:%d/' % (port+i+1,) \
                                  for i in range(config.num_workers)])
+        logging.getLogger().setLevel(level)
     else:
         cls = FetchResizeHandler
         cache = SizedLRUCache(config.client_cache_size)
-        cache.DEBUG = True
-        cache.DEBUG_NAME = 'Full Size Image Cache'
         port = config.bind_port + task_id
+        logging.getLogger().setLevel(worker_level)
 
     cls.set_config(config)
     cls.set_cache(cache)
