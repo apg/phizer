@@ -140,6 +140,8 @@ class ImageHandler(BaseRequestHandler):
         self.set_status(200)
         self.set_header('Content-Length', image.size)
         self.set_header('Content-Type', image.content_type)
+        if not self.CONFIG.keep_alive:
+            self.set_header('Connection', 'close')
 
         if self.CONFIG.max_age:
             ma = self.CONFIG.max_age

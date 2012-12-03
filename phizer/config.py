@@ -82,6 +82,7 @@ DEFAULT_PROPERTIES = {
     'debug': False,
     'disable_cache': False,
     'image_quality': 95, # image save quality (affects JPEG only)
+    'keep_alive': False, # connection keep-alive support
     'log_level': 'WARN',
     'log_level_worker': 'WARN',
     'max_age': 0,        # cache max age
@@ -101,6 +102,7 @@ PROPERTY_TYPES = {
     'debug': bool,
     'disable_cache': bool,
     'image_quality': int,
+    'keep_alive': bool,
     'log_level': str,
     'log_level_worker': str,
     'max_age': int,
